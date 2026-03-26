@@ -16,10 +16,27 @@ import {
 const barColor = {
   green: "bg-[#a3e635]",
   yellow: "bg-[#fdc649]",
-  zinc: "bg-zinc-100",
+  zinc: "bg-zinc-200",
 };
 
+const PERIODS = [
+  { label: "1D", interval: "hour",  days: 1   },
+  { label: "7D", interval: "day",   days: 7   },
+  { label: "1M", interval: "day",   days: 30  },
+  { label: "3M", interval: "week",  days: 90  },
+  { label: "1Y", interval: "month", days: 365 },
+];
+
+function getDateRange(days) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - days);
+  const fmt = (d) => d.toISOString().split("T")[0] + "T00:00:00";
+  return { startISO: fmt(start), endISO: fmt(end) };
+}
+
 export default function DashboardPage() {
+  const [activePeriod, setActivePeriod] = useState(PERIODS[1]); // default 7D
   const [metrics, setMetrics] = useState({
     total_collected: 0,
     total_matched: 0,
@@ -30,20 +47,21 @@ export default function DashboardPage() {
   const [peakTimes, setPeakTimes] = useState([]);
   const [recentPayments, setRecentPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [trendsLoading, setTrendsLoading] = useState(false);
 
+  // Initial load — fetch everything
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
         const [m, t, p, r] = await Promise.all([
           getDashboardMetrics(),
-          getCollectionTrends("day"),
+          getCollectionTrends(activePeriod.interval),
           getPeakTimes(),
           getRecentPayments(null, 0, 7)
         ]);
-        
         setMetrics(m);
-        setTrends(t.trends?.slice(-7) || []); // Get last 7 days
+        setTrends(t.trends || []);
         setPeakTimes(p.peaks || []);
         setRecentPayments(r.items || []);
       } catch (error) {
@@ -53,7 +71,32 @@ export default function DashboardPage() {
       }
     }
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-fetch trends + metrics when period changes (skip on initial mount)
+  const isFirstRender = typeof window !== "undefined";
+  useEffect(() => {
+    if (loading) return; // don't double-fetch on mount
+    async function fetchTrends() {
+      try {
+        setTrendsLoading(true);
+        const { startISO, endISO } = getDateRange(activePeriod.days);
+        const [m, t] = await Promise.all([
+          getDashboardMetrics(null, startISO, endISO),
+          getCollectionTrends(activePeriod.interval, null, startISO, endISO),
+        ]);
+        setMetrics(m);
+        setTrends(t.trends || []);
+      } catch (error) {
+        console.error("Failed to fetch trends:", error);
+      } finally {
+        setTrendsLoading(false);
+      }
+    }
+    fetchTrends();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePeriod]);
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat("en-US", {
@@ -70,23 +113,42 @@ export default function DashboardPage() {
     });
   };
 
+  // Format x-axis label based on interval
+  const formatBarLabel = (dateStr) => {
+    const d = new Date(dateStr);
+    if (activePeriod.interval === "hour") {
+      return d.toLocaleTimeString("en-US", { hour: "numeric", hour12: true });
+    }
+    if (activePeriod.interval === "month") {
+      return d.toLocaleDateString("en-US", { month: "short" });
+    }
+    if (activePeriod.interval === "week" || activePeriod.days > 7) {
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+    return d.toLocaleDateString("en-US", { weekday: "short" });
+  };
+
+  // Format tooltip date label
+  const formatTooltipLabel = (dateStr) => {
+    const d = new Date(dateStr);
+    if (activePeriod.interval === "hour") {
+      return d.toLocaleTimeString("en-US", { hour: "numeric", hour12: true });
+    }
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: activePeriod.days > 90 ? "numeric" : undefined });
+  };
+
   // Map trends to chart bars
   const chartBars = trends.map((item, i) => {
-    // Determine color based on index or value (mirroring original mock design)
     let color = "zinc";
-    if (i === 3) color = "green"; // Wed-ish highlight
-    if (i === 4) color = "yellow";
+    if (i === trends.length - 2) color = "green";
+    if (i === trends.length - 1) color = "yellow";
 
-    // Normalize height based on max value in trends
     const maxVal = Math.max(...trends.map(t => t.total), 1);
-    const height = (item.total / maxVal) * 80 + 10; // min 10% height
+    const height = ((item.total || 0) / maxVal) * 80 + 10;
 
-    return {
-      h: height,
-      color: color,
-      label: item.period // e.g. "2024-03-26"
-    };
+    return { h: height, color, label: item.period };
   });
+
 
   if (loading && !metrics.total_collected) {
     return (
@@ -113,31 +175,52 @@ export default function DashboardPage() {
               <p className="text-[11px] font-medium text-zinc-400 mt-1">Total Collected Overview</p>
             </div>
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500">
-                7d
-                <svg className="h-2.5 w-2.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+              {/* Period selector pills */}
+              <div className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 p-0.5">
+                {PERIODS.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => setActivePeriod(p)}
+                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
+                      activePeriod.label === p.label
+                        ? "bg-white text-zinc-900 shadow-sm"
+                        : "text-zinc-400 hover:text-zinc-600"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
               {/* Legend */}
               <div className="flex items-center gap-2 text-[10px] text-zinc-400">
                 <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-[#fdc649]" />Matched</span>
                 <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-[#a3e635]" />Collected</span>
-                <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-[#f97316]" />Outstanding</span>
               </div>
             </div>
           </div>
 
           {/* Chart */}
-          <div className="flex h-44 w-full items-end gap-1.5">
+          <div className="relative flex h-44 w-full items-end gap-1.5">
+            {trendsLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl z-10">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 border-t-[#a3e635]" />
+              </div>
+            )}
             {chartBars.map((bar, i) => (
-              <div key={i} className="group relative flex-1 flex flex-col items-center gap-1">
+              <div key={i} className="group relative flex-1 h-full flex flex-col justify-end items-center gap-1">
                 <motion.div
                   initial={{ height: 0 }}
                   animate={{ height: `${bar.h}%` }}
                   transition={{ duration: 0.7, delay: i * 0.06, ease: "easeOut" }}
                   className={`w-full rounded-t-md ${barColor[bar.color]} transition-opacity group-hover:opacity-80`}
                 />
+                
+                {/* Tooltip */}
+                <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-zinc-900 text-white text-[10px] py-1.5 px-2.5 rounded-xl whitespace-nowrap z-20 pointer-events-none shadow-xl flex flex-col items-center">
+                  <span className="text-zinc-400 text-[8px] font-bold uppercase tracking-wider">{formatTooltipLabel(bar.label)}</span>
+                  <span className="font-bold">{formatCurrency(trends[i].total || 0)}</span>
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-900 rotate-45" />
+                </div>
               </div>
             ))}
             {chartBars.length === 0 && (
@@ -146,10 +229,11 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+          {/* X-axis labels */}
           <div className="mt-2 flex justify-between px-0 text-[10px] font-medium text-zinc-300">
             {chartBars.map((bar, i) => (
               <span key={i} className="flex-1 text-center">
-                {new Date(bar.label).toLocaleDateString("en-US", { weekday: "short" })}
+                {formatBarLabel(bar.label)}
               </span>
             ))}
           </div>
