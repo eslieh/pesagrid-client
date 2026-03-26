@@ -6,6 +6,7 @@ import { Card } from "../../pesagrid/components/dashboard/UI";
 import { 
   getObligations, 
   createObligation, 
+  cancelObligation,
   getPayers, 
   getPayerGroups 
 } from "../../../lib/Obligation";
@@ -29,6 +30,8 @@ export default function InvoicesPage() {
   const [payers, setPayers] = useState([]);
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [openActionId, setOpenActionId] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -53,27 +56,36 @@ export default function InvoicesPage() {
 
   const [customFields, setCustomFields] = useState([]); // [{key: "", value: ""}]
 
-  const loadData = async () => {
+  const loadInvoices = async () => {
     try {
       setIsLoading(true);
-      const [invRes, payRes, groupRes] = await Promise.all([
-        getObligations({ limit: 100 }),
-        getPayers({ limit: 500 }),
-        getPayerGroups({ limit: 500 })
-      ]);
-      
+      const invRes = await getObligations({ limit: 20 });
       if (invRes && invRes.items) setInvoices(invRes.items);
-      if (payRes && payRes.items) setPayers(payRes.items);
-      if (groupRes && groupRes.items) setGroups(groupRes.items);
     } catch (err) {
-      console.error("Failed to load invoice data", err);
+      console.error("Failed to load invoices", err);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const loadFormData = async () => {
+    try {
+      const [payRes, groupRes] = await Promise.all([
+        getPayers({ limit: 100 }),
+        getPayerGroups({ limit: 100 })
+      ]);
+      if (payRes && payRes.items) setPayers(payRes.items);
+      if (groupRes) setGroups(Array.isArray(groupRes) ? groupRes : (groupRes.items || []));
+    } catch (err) {
+      console.error("Failed to load payers/groups", err);
+    }
+  };
+
+  // Keep loadData as an alias used after cancel/submit to refresh the list
+  const loadData = loadInvoices;
+
   useEffect(() => {
-    loadData();
+    loadInvoices();
     // Default Dates
     const today = new Date();
     const nextWeek = new Date(today);
@@ -124,6 +136,10 @@ export default function InvoicesPage() {
     setAudienceType("single");
     setSelectedPayerId("");
     setSelectedGroupId("");
+    // Lazy-load payers and groups only when the wizard is opened
+    if (payers.length === 0 || groups.length === 0) {
+      loadFormData();
+    }
   };
 
   const nextStep = () => {
@@ -139,7 +155,7 @@ export default function InvoicesPage() {
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      if (!formData.description || !formData.amount_due || (!formData.is_recurring && !formData.due_date)) {
+      if (!formData.description || !formData.amount_due) {
         setMessage({ type: "error", text: "Please fill in all required fields." });
         return;
       }
@@ -169,7 +185,7 @@ export default function InvoicesPage() {
         description: formData.description,
         amount_due: parseFloat(formData.amount_due),
         currency: "KES",
-        due_date: new Date(formData.due_date).toISOString(),
+        due_date: formData.due_date ? new Date(formData.due_date).toISOString() : null,
         is_recurring: formData.is_recurring,
         meta: meta,
       };
@@ -216,6 +232,21 @@ export default function InvoicesPage() {
       setMessage({ type: "error", text: err.message || "Failed to create invoices." });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (obligationId) => {
+    if (!confirm("Are you sure you want to cancel this obligation? This action cannot be undone.")) return;
+    try {
+      setCancellingId(obligationId);
+      setOpenActionId(null);
+      await cancelObligation(obligationId);
+      setMessage({ type: "success", text: "Obligation cancelled successfully." });
+      loadData();
+    } catch (err) {
+      setMessage({ type: "error", text: err.message || "Failed to cancel obligation." });
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -444,14 +475,13 @@ export default function InvoicesPage() {
                     </Field>
 
                     {!formData.is_recurring && (
-                      <Field label="Due Date" required>
+                      <Field label="Due Date">
                         <input
                           name="due_date"
                           type="date"
                           value={formData.due_date}
                           onChange={handleChange}
                           className={inputCls}
-                          required
                         />
                       </Field>
                     )}
@@ -641,7 +671,7 @@ export default function InvoicesPage() {
                         {formData.is_recurring ? 'Starts' : 'Due'}
                       </span>
                       <span className="font-semibold text-zinc-900">
-                        {formData.is_recurring ? formData.start_date : formData.due_date}
+                        {formData.is_recurring ? formData.start_date : (formData.due_date || 'Not Set')}
                       </span>
                     </div>
                   </div>
@@ -784,11 +814,46 @@ export default function InvoicesPage() {
                       })}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                        </svg>
-                      </button>
+                      <div className="relative inline-block">
+                        <button
+                          onClick={() => setOpenActionId(openActionId === inv.id ? null : inv.id)}
+                          disabled={cancellingId === inv.id}
+                          className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors disabled:opacity-40"
+                        >
+                          {cancellingId === inv.id ? (
+                            <div className="h-4 w-4 rounded-full border-2 border-zinc-300 border-t-zinc-600 animate-spin" />
+                          ) : (
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {openActionId === inv.id && (
+                          <>
+                            {/* Backdrop to close dropdown */}
+                            <div
+                              className="fixed inset-0 z-10"
+                              onClick={() => setOpenActionId(null)}
+                            />
+                            <div className="absolute right-0 top-8 z-20 w-44 rounded-xl border border-zinc-100 bg-white shadow-lg py-1 overflow-hidden">
+                              {inv.status !== 'cancelled' ? (
+                                <button
+                                  onClick={() => handleCancel(inv.id)}
+                                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[12px] font-medium text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                  </svg>
+                                  Cancel Obligation
+                                </button>
+                              ) : (
+                                <div className="px-4 py-2.5 text-[12px] text-zinc-400 italic">Already cancelled</div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
