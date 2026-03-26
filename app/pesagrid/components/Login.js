@@ -124,7 +124,7 @@ export default function LoginPage() {
       // Handle successful login
       console.log("Login successful:", response);
       // You might want to redirect to dashboard here
-      window.location.href = "/pesagrid"; // Redirect back to landing page
+      window.location.href = "/dashboard";
     } catch (err) {
       setError(err.message);
     } finally {
