@@ -1,8 +1,5 @@
-import VerifyPage from "../components/Verify"
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return (
-    <VerifyPage/>
-    
-  );
+  redirect("/auth/verify");
 }

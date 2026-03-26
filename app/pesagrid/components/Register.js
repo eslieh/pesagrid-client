@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { register } from "../../../lib/Auth";
-import Image from "next/image";
 
 function Card({ className = "", children }) {
   return (
     <div
       className={[
-        "rounded-3xl border border-zinc-900/10 bg-white shadow-[0_1px_0_0_rgba(24,24,27,0.04),0_20px_60px_-40px_rgba(24,24,27,0.55)]",
+        "rounded-[2.5rem] border border-zinc-900/10 bg-white shadow-[0_1px_0_0_rgba(24,24,27,0.04),0_20px_60px_-40px_rgba(24,24,27,0.55)]",
         className,
       ].join(" ")}
     >
@@ -20,52 +19,106 @@ function Card({ className = "", children }) {
 }
 
 export default function RegisterPage() {
+  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
-    email: "",
-    phone: "",
+    identifier: "",
     password: "",
     confirmPassword: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [authType, setAuthType] = useState("email");
+
+  const formatPhoneNumber = (value) => {
+    // Strip non-digit characters except +
+    const cleanValue = value.replace(/[^\d+]/g, '');
+    
+    // If it starts with 07 or 01, convert to +254 format
+    if (cleanValue.startsWith('0') && (cleanValue[1] === '7' || cleanValue[1] === '1')) {
+      const rest = cleanValue.slice(1); // Remove the leading 0
+      const p1 = "+254";
+      const p2 = rest.slice(0, 3);
+      const p3 = rest.slice(3, 6);
+      const p4 = rest.slice(6, 9);
+      return [p1, p2, p3, p4].filter(Boolean).join(' ');
+    }
+
+    // For other international formats or already prefixed
+    if (cleanValue.startsWith('+')) {
+      const prefix = cleanValue.slice(0, 4);
+      const rest = cleanValue.slice(4);
+      const groups = rest.match(/.{1,3}/g) || [];
+      return [prefix, ...groups].join(' ');
+    }
+
+    return cleanValue;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    let finalValue = value;
+
+    if (name === "identifier") {
+      // If it looks like it's starting as a phone number, format it
+      // More specific detection: starts with + or 0, and contains mostly digits/spaces
+      const isLikelyPhone = /^(\+|0)/.test(value) && /^[\d+\s.-]*$/.test(value);
+      if (isLikelyPhone) {
+        finalValue = formatPhoneNumber(value);
+      }
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: finalValue
     }));
     if (error) setError("");
   };
 
-  const validateForm = () => {
-    if (!formData.email.trim()) {
-      setError("Email is required");
+  const validateStep1 = () => {
+    const val = formData.identifier.trim();
+    if (!val) {
+      setError("Email or Phone number is required");
       return false;
     }
-    if (!formData.phone.trim()) {
-      setError("Phone number is required");
+
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+    // Support international format +code number, with optional spaces, dashes, parentheses
+    const isPhone = /^\+?([0-9]{1,4})?[-. ]?([0-9]{1,15})$/.test(val.replace(/[\s().-]/g, ''));
+
+    if (!isEmail && !isPhone) {
+      setError("Please enter a valid email or phone number");
       return false;
     }
-    if (!formData.password) {
-      setError("Password is required");
-      return false;
-    }
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return false;
-    }
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return false;
-    }
+
+    setAuthType(isPhone ? "phone" : "email");
     return true;
+  };
+
+  const handleNext = (e) => {
+    e.preventDefault();
+    if (validateStep1()) {
+      setStep(2);
+    }
+  };
+
+  const handleBack = () => {
+    setStep(1);
+    setError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    if (!formData.password) {
+      setError("Password is required");
+      return;
+    }
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
 
@@ -73,15 +126,23 @@ export default function RegisterPage() {
     setError("");
 
     try {
-      const response = await register({
-        email: formData.email,
-        phone: formData.phone,
+      const payload = {
         password: formData.password,
-      });
-      // Handle successful registration
+        auth_type: authType,
+      };
+
+      if (authType === "email") {
+        payload.email = formData.identifier.trim();
+      } else {
+        // Strip spaces from the formatted phone number for the backend
+        payload.phone = formData.identifier.replace(/\s/g, '');
+      }
+
+      const response = await register(payload);
       console.log("Registration successful:", response);
-      // Redirect to verification page after successful registration
-      window.location.href = "/pesagrid/verify";
+      
+      // If phone, always go to verify. If email, also go to verify (where they enter code if sent)
+      window.location.href = "/auth/verify";
     } catch (err) {
       setError(err.message);
     } finally {
@@ -89,29 +150,21 @@ export default function RegisterPage() {
     }
   };
 
+  const stepVariants = {
+    initial: { opacity: 0, x: 20 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -20 },
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50">
       {/* Background decoration */}
       <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute -top-28 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-lime-300/25 blur-3xl" />
-        <div className="absolute -left-24 top-48 h-[22rem] w-[22rem] rounded-full bg-emerald-200/30 blur-3xl" />
+        <div className="absolute -top-28 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-[#9de50033] blur-3xl" />
+        <div className="absolute -left-24 top-48 h-[22rem] w-[22rem] rounded-full bg-[#9de50026] blur-3xl" />
         <div className="absolute -right-24 top-72 h-[22rem] w-[22rem] rounded-full bg-zinc-200/70 blur-3xl" />
       </div>
 
-      {/* Header */}
-      <header className="sticky top-4 z-20">
-        <div className="mx-auto flex w-full max-w-6xl justify-center px-6">
-          <motion.nav
-            initial={{ opacity: 0, y: -14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="flex items-center rounded-full border border-white/65 bg-[linear-gradient(120deg,rgba(255,255,255,0.62),rgba(255,255,255,0.28))] p-1.5 shadow-[0_12px_45px_-22px_rgba(24,24,27,0.52),inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-2xl"
-          >
-          </motion.nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
       <main className="flex flex-1 items-center justify-center px-6 py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -119,106 +172,127 @@ export default function RegisterPage() {
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md"
         >
-          <Card className="p-8">
-            <div className="mb-6 text-center">
-              <h1 className="text-2xl font-semibold text-zinc-900">Join Pesagrid</h1>
-              <p className="mt-2 text-sm text-zinc-600">Start automating your payment reconciliation today</p>
+          <Card className="p-10">
+            <div className="mb-8 text-center">
+              <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Join Pesagrid</h1>
+              <p className="mt-2 text-sm text-zinc-600">Start automating your payment reconciliation</p>
             </div>
 
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3"
+                className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4"
               >
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="text-sm text-red-600 font-medium">{error}</p>
               </motion.div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email || ''}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-lime-500 focus:outline-none"
-                  placeholder="Enter your email address"
-                  disabled={isLoading}
-                  autoComplete="email"
-                />
-              </div>
+            <AnimatePresence mode="wait">
+              {step === 1 ? (
+                <motion.form
+                  key="step1"
+                  variants={stepVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  onSubmit={handleNext}
+                  className="space-y-6"
+                >
+                  <div>
+                    <label htmlFor="identifier" className="block text-sm font-semibold text-zinc-700 mb-2">
+                      Email or Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      id="identifier"
+                      name="identifier"
+                      value={formData.identifier}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-zinc-200 px-5 py-4 text-base text-zinc-900 placeholder-zinc-400 focus:border-[#9de500cc] focus:ring-4 focus:ring-[#9de5001a] focus:outline-none transition-all"
+                      placeholder="e.g. name@company.com or 0712..."
+                      autoComplete="username"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-zinc-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  value={formData.phone || ''}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-lime-500 focus:outline-none"
-                  placeholder="Enter your phone number"
-                  disabled={isLoading}
-                  autoComplete="tel"
-                />
-              </div>
+                  <button
+                    type="submit"
+                    className="w-full h-14 rounded-2xl bg-[#9de500cc] text-base font-bold text-zinc-900 shadow-[0_8px_20px_-6px_rgba(157,229,0,0.4)] transition-all hover:bg-[#8fd100] hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    Continue
+                  </button>
+                </motion.form>
+              ) : (
+                <motion.form
+                  key="step2"
+                  variants={stepVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  onSubmit={handleSubmit}
+                  className="space-y-6"
+                >
+                  <div>
+                    <div className="mb-4 flex items-center justify-between">
+                      <label htmlFor="password" className="block text-sm font-semibold text-zinc-700">
+                        Create Password
+                      </label>
+                      <button 
+                        type="button" 
+                        onClick={handleBack}
+                        className="text-xs font-bold text-[#6f9f00] hover:underline"
+                      >
+                        Change {authType === 'email' ? 'Email' : 'Phone'}
+                      </button>
+                    </div>
+                    <input
+                      type="password"
+                      id="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-zinc-200 px-5 py-4 text-base text-zinc-900 placeholder-zinc-400 focus:border-[#9de500cc] focus:ring-4 focus:ring-[#9de5001a] focus:outline-none transition-all"
+                      placeholder="Min. 6 characters"
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password || ''}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-lime-500 focus:outline-none"
-                  placeholder="Create a password (min. 6 characters)"
-                  disabled={isLoading}
-                  autoComplete="new-password"
-                />
-              </div>
+                  <div>
+                    <label htmlFor="confirmPassword" className="block text-sm font-semibold text-zinc-700 mb-2">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-zinc-200 px-5 py-4 text-base text-zinc-900 placeholder-zinc-400 focus:border-[#9de500cc] focus:ring-4 focus:ring-[#9de5001a] focus:outline-none transition-all"
+                      placeholder="Verify your password"
+                      autoComplete="new-password"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-700 mb-1">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword || ''}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:border-lime-500 focus:outline-none"
-                  placeholder="Confirm your password"
-                  disabled={isLoading}
-                  autoComplete="new-password"
-                />
-              </div>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-14 rounded-2xl bg-[#9de500cc] text-base font-bold text-zinc-900 shadow-[0_8px_20px_-6px_rgba(157,229,0,0.4)] transition-all hover:bg-[#8fd100] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? "Creating Account..." : "Create Account"}
+                  </button>
+                </motion.form>
+              )}
+            </AnimatePresence>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full rounded-xl bg-gradient-to-r from-lime-500 to-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-lime-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? "Creating Account..." : "Create Account"}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
+            <div className="mt-8 text-center border-t border-zinc-100 pt-8">
               <p className="text-sm text-zinc-600">
                 Already have an account?{" "}
                 <Link
-                  href="/pesagrid/login"
-                  className="font-semibold text-lime-600 hover:text-lime-700 focus:outline-none focus:underline"
+                  href="/auth/login"
+                  className="font-bold text-[#6f9f00] hover:text-[#5d8600]"
                 >
                   Sign in
                 </Link>
@@ -226,12 +300,15 @@ export default function RegisterPage() {
             </div>
           </Card>
 
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
             <Link
               href="/pesagrid"
-              className="text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
+              className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 transition-colors"
             >
-              ← Back to Home
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to Home
             </Link>
           </div>
         </motion.div>

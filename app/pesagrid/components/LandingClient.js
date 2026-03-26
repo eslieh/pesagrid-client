@@ -50,7 +50,7 @@ function ElasticBubbleSlider({ size = "md", className = "" }) {
   const wrapPadding = size === "sm" ? "p-1" : "p-1.5";
 
   const options = [
-    { id: "get-started", label: "Get Started Today", href: "/pesagrid/register" },
+    { id: "get-started", label: "Get Started Today", href: "/auth/register" },
     { id: "watch-demo", label: "Watch the Demo", href: "#demo" },
   ];
 
@@ -157,13 +157,13 @@ export default function LandingClient() {
             ))}
             <div className="flex items-center gap-2 ml-4">
               <Link
-                href="/pesagrid/login"
+                href="/auth/login"
                 className="rounded-full border border-transparent px-4 py-2 text-sm font-medium text-zinc-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/75 hover:bg-white/70 hover:text-zinc-900"
               >
                 Sign In
               </Link>
               <Link
-                href="/pesagrid/register"
+                href="/auth/register"
                 className="rounded-full bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-lime-600 hover:shadow-md"
               >
                 Get Started
@@ -719,7 +719,7 @@ export default function LandingClient() {
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                   <Link
-                    href="/pesagrid/register"
+                    href="/auth/register"
                     className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-zinc-900 shadow-sm transition-colors hover:bg-zinc-100"
                   >
                     Get Started Now
@@ -755,4 +755,3 @@ export default function LandingClient() {
     </div>
   );
 }
-

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { verifyAccount } from "../../../lib/Auth";
+import { resetPassword } from "../../../lib/Auth";
 
 function Card({ className = "", children }) {
   return (
@@ -19,33 +19,22 @@ function Card({ className = "", children }) {
   );
 }
 
-function LoadingSpinner() {
-  return (
-    <div className="flex flex-col items-center justify-center py-8">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        className="h-12 w-12 rounded-full border-4 border-zinc-100 border-t-[#9de500cc]"
-      />
-      <p className="mt-4 text-sm font-medium text-zinc-600">Verifying your account...</p>
-    </div>
-  );
-}
-
-function VerifyContent() {
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const tokenFromUrl = searchParams.get("token");
 
   const [formData, setFormData] = useState({
     token: tokenFromUrl || "",
+    newPassword: "",
+    confirmPassword: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isVerified, setIsVerified] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
-    if (tokenFromUrl && !isVerified && !isLoading && !error) {
-      handleVerify(tokenFromUrl);
+    if (tokenFromUrl) {
+      setFormData(prev => ({ ...prev, token: tokenFromUrl }));
     }
   }, [tokenFromUrl]);
 
@@ -58,14 +47,31 @@ function VerifyContent() {
     if (error) setError("");
   };
 
-  const handleVerify = async (token) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.token.trim()) {
+      setError("Verification code is required");
+      return;
+    }
+    if (formData.newPassword.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (formData.newPassword !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
     try {
-      const response = await verifyAccount({ token });
-      console.log("Verification successful:", response);
-      setIsVerified(true);
+      await resetPassword({
+        token: formData.token.trim(),
+        new_password: formData.newPassword,
+      });
+      setIsSuccess(true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -73,19 +79,10 @@ function VerifyContent() {
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.token.trim()) {
-      setError("Please enter the verification code");
-      return;
-    }
-    handleVerify(formData.token);
-  };
-
   return (
     <div className="w-full max-w-md">
       <AnimatePresence mode="wait">
-        {isVerified ? (
+        {isSuccess ? (
           <motion.div
             key="success"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -104,9 +101,9 @@ function VerifyContent() {
                 </svg>
               </motion.div>
 
-              <h1 className="text-3xl font-bold text-zinc-900 mb-3">Verification Successful!</h1>
+              <h1 className="text-3xl font-bold text-zinc-900 mb-3">Password Reset!</h1>
               <p className="text-zinc-600 mb-8 px-4">
-                Your account is ready. You can now sign in and start automating your reconciliation.
+                Your password has been successfully updated. You can now sign in with your new credentials.
               </p>
 
               <Link
@@ -126,9 +123,9 @@ function VerifyContent() {
           >
             <Card className="p-10">
               <div className="mb-8 text-center">
-                <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Verify Account</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Reset Password</h1>
                 <p className="mt-2 text-sm text-zinc-600">
-                  {tokenFromUrl ? "Processing your verification..." : "Enter the code sent to your device"}
+                  Enter the code and your new password below
                 </p>
               </div>
 
@@ -142,51 +139,65 @@ function VerifyContent() {
                 </motion.div>
               )}
 
-              {isLoading ? (
-                <LoadingSpinner />
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div>
-                    <label htmlFor="token" className="block text-sm font-semibold text-zinc-700 mb-2">
-                      Verification Code
-                    </label>
-                    <input
-                      type="text"
-                      id="token"
-                      name="token"
-                      value={formData.token}
-                      onChange={handleChange}
-                      className="w-full rounded-2xl border border-zinc-200 px-5 py-4 text-center text-2xl font-bold tracking-[0.5em] text-zinc-900 placeholder-zinc-300 focus:border-[#9de500cc] focus:ring-4 focus:ring-[#9de5001a] focus:outline-none transition-all"
-                      placeholder="000000"
-                      maxLength={6}
-                      disabled={isLoading}
-                      autoComplete="one-time-code"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="token" className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    id="token"
+                    name="token"
+                    value={formData.token}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-zinc-200 px-5 py-4 text-center text-xl font-bold tracking-[0.2em] text-zinc-900 focus:border-[#9de500cc] focus:ring-4 focus:ring-[#9de5001a] focus:outline-none transition-all"
+                    placeholder="Enter code"
                     disabled={isLoading}
-                    className="w-full h-14 rounded-2xl bg-[#9de500cc] text-base font-bold text-zinc-900 shadow-[0_8px_20px_-6px_rgba(157,229,0,0.4)] transition-all hover:bg-[#8fd100] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-                  >
-                    Verify Account
-                  </button>
-                </form>
-              )}
-
-              {!isLoading && (
-                <div className="mt-8 text-center border-t border-zinc-100 pt-8">
-                  <p className="text-sm text-zinc-600">
-                    Didn&apos;t receive the code?{" "}
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="font-bold text-[#6f9f00] hover:underline"
-                    >
-                      Resend
-                    </button>
-                  </p>
+                  />
                 </div>
-              )}
+
+                <div>
+                  <label htmlFor="newPassword" className="block text-sm font-semibold text-zinc-700 mb-2">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    id="newPassword"
+                    name="newPassword"
+                    value={formData.newPassword}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-zinc-200 px-5 py-4 text-base text-zinc-900 placeholder-zinc-400 focus:border-[#9de500cc] focus:ring-4 focus:ring-[#9de5001a] focus:outline-none transition-all"
+                    placeholder="Min. 6 characters"
+                    disabled={isLoading}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-sm font-semibold text-zinc-700 mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-zinc-200 px-5 py-4 text-base text-zinc-900 placeholder-zinc-400 focus:border-[#9de500cc] focus:ring-4 focus:ring-[#9de5001a] focus:outline-none transition-all"
+                    placeholder="Verify your new password"
+                    disabled={isLoading}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-14 rounded-2xl bg-[#9de500cc] text-base font-bold text-zinc-900 shadow-[0_8px_20px_-6px_rgba(157,229,0,0.4)] transition-all hover:bg-[#8fd100] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isLoading ? "Updating..." : "Reset Password"}
+                </button>
+              </form>
             </Card>
 
             <div className="mt-8 text-center">
@@ -204,10 +215,9 @@ function VerifyContent() {
   );
 }
 
-export default function VerifyPage() {
+export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50">
-      {/* Background decoration */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute -top-28 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-[#9de50033] blur-3xl" />
         <div className="absolute -left-24 top-48 h-[22rem] w-[22rem] rounded-full bg-[#9de50026] blur-3xl" />
@@ -216,7 +226,7 @@ export default function VerifyPage() {
 
       <main className="flex flex-1 items-center justify-center px-6 py-12">
         <Suspense fallback={<div>Loading...</div>}>
-          <VerifyContent />
+          <ResetPasswordContent />
         </Suspense>
       </main>
     </div>
