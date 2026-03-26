@@ -57,14 +57,14 @@ export default function InvoicesPage() {
     try {
       setIsLoading(true);
       const [invRes, payRes, groupRes] = await Promise.all([
-        getObligations({ limit: 100 }),
-        getPayers({ limit: 500 }),
-        getPayerGroups({ limit: 500 })
+        getObligations({ limit: 20 }),
+        getPayers({ limit: 20 }),
+        getPayerGroups({ limit: 20 })
       ]);
       
       if (invRes && invRes.items) setInvoices(invRes.items);
       if (payRes && payRes.items) setPayers(payRes.items);
-      if (groupRes && groupRes.items) setGroups(groupRes.items);
+      if (groupRes) setGroups(Array.isArray(groupRes) ? groupRes : (groupRes.items || []));
     } catch (err) {
       console.error("Failed to load invoice data", err);
     } finally {
@@ -139,7 +139,7 @@ export default function InvoicesPage() {
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      if (!formData.description || !formData.amount_due || (!formData.is_recurring && !formData.due_date)) {
+      if (!formData.description || !formData.amount_due) {
         setMessage({ type: "error", text: "Please fill in all required fields." });
         return;
       }
@@ -169,7 +169,7 @@ export default function InvoicesPage() {
         description: formData.description,
         amount_due: parseFloat(formData.amount_due),
         currency: "KES",
-        due_date: new Date(formData.due_date).toISOString(),
+        due_date: formData.due_date ? new Date(formData.due_date).toISOString() : null,
         is_recurring: formData.is_recurring,
         meta: meta,
       };
@@ -444,14 +444,13 @@ export default function InvoicesPage() {
                     </Field>
 
                     {!formData.is_recurring && (
-                      <Field label="Due Date" required>
+                      <Field label="Due Date">
                         <input
                           name="due_date"
                           type="date"
                           value={formData.due_date}
                           onChange={handleChange}
                           className={inputCls}
-                          required
                         />
                       </Field>
                     )}
@@ -641,7 +640,7 @@ export default function InvoicesPage() {
                         {formData.is_recurring ? 'Starts' : 'Due'}
                       </span>
                       <span className="font-semibold text-zinc-900">
-                        {formData.is_recurring ? formData.start_date : formData.due_date}
+                        {formData.is_recurring ? formData.start_date : (formData.due_date || 'Not Set')}
                       </span>
                     </div>
                   </div>

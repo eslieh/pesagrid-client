@@ -7,6 +7,7 @@ import {
   getPayers, createPayer, deletePayer, 
   getPayerGroups, createPayerGroup, deletePayerGroup 
 } from "../../../lib/Obligation";
+import Link from "next/link";
 
 function Field({ label, children, required }) {
   return (
@@ -55,11 +56,11 @@ export default function PayersPage() {
     try {
       setIsLoading(true);
       const [payRes, groupRes] = await Promise.all([
-        getPayers({ limit: 500 }),
-        getPayerGroups({ limit: 500 })
+        getPayers({ limit: 20 }),
+        getPayerGroups({ limit: 20 })
       ]);
       if (payRes && payRes.items) setPayers(payRes.items);
-      if (groupRes && groupRes.items) setGroups(groupRes.items);
+      if (groupRes) setGroups(Array.isArray(groupRes) ? groupRes : (groupRes.items || []));
     } catch (err) {
       console.error("Failed to load directory data", err);
     } finally {
@@ -403,14 +404,25 @@ export default function PayersPage() {
                             <p>{p.phone}</p>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button 
-                              onClick={() => handleDeletePayer(p.id)}
-                              className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <Link 
+                                href={`/dashboard/payers/${p.id}/transactions`}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-[#6bb800] hover:text-[#559400] bg-[#a3e635]/10 hover:bg-[#a3e635]/20 rounded-lg transition-colors"
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                                Transactions
+                              </Link>
+                              <button 
+                                onClick={() => handleDeletePayer(p.id)}
+                                className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
