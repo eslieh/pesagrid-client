@@ -119,6 +119,7 @@ export default function LoginPage() {
 
       const response = await login({
         identifier: sanitizedIdentifier,
+        auth_type: isPhone ? "phone" : "email",
         password: formData.password
       });
       // Handle successful login
