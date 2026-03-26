@@ -110,10 +110,10 @@ function VerifyContent() {
               </p>
 
               <Link
-                href="/auth/login"
+                href="/dashboard"
                 className="inline-flex h-14 w-full items-center justify-center rounded-2xl bg-[#9de500cc] px-8 text-base font-bold text-zinc-900 shadow-[0_8px_20px_-6px_rgba(157,229,0,0.4)] transition-all hover:bg-[#8fd100] hover:scale-[1.02] active:scale-[0.98]"
               >
-                Go to Login
+                Go to Dashboard
               </Link>
             </Card>
           </motion.div>
