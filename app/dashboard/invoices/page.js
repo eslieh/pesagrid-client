@@ -52,6 +52,8 @@ export default function InvoicesPage() {
     start_date: "",
     grace_period_days: 5,
     day_of_month: 1,
+    day_of_week: 0,
+    interval_days: 1,
   });
 
   const [customFields, setCustomFields] = useState([]); // [{key: "", value: ""}]
@@ -91,11 +93,14 @@ export default function InvoicesPage() {
     const nextWeek = new Date(today);
     nextWeek.setDate(today.getDate() + 7);
     
+    const backendDayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
+
     setFormData(prev => ({
       ...prev,
       due_date: nextWeek.toISOString().split('T')[0],
       start_date: today.toISOString().split('T')[0],
-      day_of_month: today.getDate()
+      day_of_month: Math.min(28, today.getDate()),
+      day_of_week: backendDayOfWeek
     }));
   }, []);
 
@@ -106,11 +111,16 @@ export default function InvoicesPage() {
       [name]: type === 'checkbox' ? checked : value 
     }));
     
-    // Auto sync start_date and day_of_month for convenience
+    // Auto sync start_date and config fields for convenience
     if (name === "start_date" && value) {
       const d = new Date(value);
       if (!isNaN(d.getTime())) {
-        setFormData((prev) => ({ ...prev, day_of_month: d.getDate() }));
+        const backendDayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1;
+        setFormData((prev) => ({ 
+          ...prev, 
+          day_of_month: Math.min(28, d.getDate()),
+          day_of_week: backendDayOfWeek
+        }));
       }
     }
   };
@@ -192,13 +202,28 @@ export default function InvoicesPage() {
 
       if (formData.is_recurring) {
         let sd = new Date(formData.start_date);
-        basePayload.recurring = {
-          recurrence_type: formData.recurrence_type,
+        const recurringConfig = {
           start_date: sd.toISOString(),
-          day_of_month: formData.recurrence_type === 'monthly' ? parseInt(formData.day_of_month) : sd.getDate(),
-          grace_period_days: parseInt(formData.grace_period_days) || 0,
           auto_generate: true
         };
+
+        if (formData.recurrence_type === 'monthly') {
+          recurringConfig.recurrence_type = 'monthly';
+          recurringConfig.day_of_month = parseInt(formData.day_of_month) || 1;
+          recurringConfig.grace_period_days = parseInt(formData.grace_period_days) || 0;
+        } else if (formData.recurrence_type === 'weekly') {
+          recurringConfig.recurrence_type = 'weekly';
+          recurringConfig.day_of_week = parseInt(formData.day_of_week) || 0;
+          recurringConfig.grace_period_days = parseInt(formData.grace_period_days) || 0;
+        } else if (formData.recurrence_type === 'daily') {
+          recurringConfig.recurrence_type = 'custom';
+          recurringConfig.interval_days = 1;
+        } else if (formData.recurrence_type === 'custom') {
+          recurringConfig.recurrence_type = 'custom';
+          recurringConfig.interval_days = parseInt(formData.interval_days) || 1;
+        }
+
+        basePayload.recurring = recurringConfig;
       }
 
       // Determine targets
@@ -525,7 +550,7 @@ export default function InvoicesPage() {
                               <option value="daily">Daily</option>
                               <option value="weekly">Weekly</option>
                               <option value="monthly">Monthly</option>
-                              <option value="yearly">Yearly</option>
+                              <option value="custom">Custom Interval</option>
                             </select>
                           </Field>
                           
@@ -546,8 +571,42 @@ export default function InvoicesPage() {
                                 name="day_of_month"
                                 type="number"
                                 min="1"
-                                max="31"
+                                max="28"
                                 value={formData.day_of_month}
+                                onChange={handleChange}
+                                className={inputCls}
+                                required
+                              />
+                            </Field>
+                          )}
+
+                          {formData.recurrence_type === "weekly" && (
+                            <Field label="Day of Week" required>
+                              <select
+                                name="day_of_week"
+                                value={formData.day_of_week}
+                                onChange={handleChange}
+                                className={inputCls}
+                                required
+                              >
+                                <option value="0">Monday</option>
+                                <option value="1">Tuesday</option>
+                                <option value="2">Wednesday</option>
+                                <option value="3">Thursday</option>
+                                <option value="4">Friday</option>
+                                <option value="5">Saturday</option>
+                                <option value="6">Sunday</option>
+                              </select>
+                            </Field>
+                          )}
+
+                          {formData.recurrence_type === "custom" && (
+                            <Field label="Interval (Days)" required>
+                              <input
+                                name="interval_days"
+                                type="number"
+                                min="1"
+                                value={formData.interval_days}
                                 onChange={handleChange}
                                 className={inputCls}
                                 required
