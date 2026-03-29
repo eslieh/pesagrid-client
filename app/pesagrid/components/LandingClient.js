@@ -349,21 +349,21 @@ export default function LandingClient() {
 
                 {/* Placeholder image slot (you'll replace src) */}
                 <div className="mt-5 overflow-hidden rounded-2xl border border-zinc-900/10 bg-zinc-50">
-                  <div className="flex items-center justify-between border-b border-zinc-900/10 px-4 py-3">
+                  {/* <div className="flex items-center justify-between border-b border-zinc-900/10 px-4 py-3">
                     <div className="text-xs font-semibold text-zinc-600">
                       Replace with your dashboard screenshot
                     </div>
                     <div className="text-[11px] text-zinc-500">
                       `public/images/hero-dashboard.png`
                     </div>
-                  </div>
+                  </div> */}
                   <div className="relative aspect-[16/9] w-full">
                     <Image
-                      src="/images/hero-dashboard.png"
+                      src="/dashboard.png"
                       alt="Pesagrid dashboard preview"
                       fill
                       sizes="(min-width: 768px) 520px, 100vw"
-                      className="object-cover"
+                      // className="object-cover"
                       priority
                     />
                   </div>
