@@ -138,11 +138,11 @@ export default function LandingClient() {
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="flex items-center gap-2 overflow-hidden whitespace-nowrap rounded-full px-2 py-1"
             >
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-lime-300 via-lime-400 to-emerald-400 text-sm font-black text-zinc-900 shadow-[inset_0_1px_1px_rgba(255,255,255,0.5),0_6px_14px_-8px_rgba(34,197,94,0.9)]">
+              {/* <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-lime-300 via-lime-400 to-emerald-400 text-sm font-black text-zinc-900 shadow-[inset_0_1px_1px_rgba(255,255,255,0.5),0_6px_14px_-8px_rgba(34,197,94,0.9)]">
                 P
-              </span>
-              <span className="pr-2 text-sm font-semibold tracking-tight text-zinc-800">
-                Pesagrid
+              </span> */}
+              <span className="pr-3 text-lg font-bold tracking-tight text-zinc-800">
+                PesaGrid
               </span>
             </motion.a>
 
