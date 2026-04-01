@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "../../pesagrid/components/dashboard/UI";
+import { MfaVerificationModal } from "../../pesagrid/components/dashboard/MfaVerificationModal";
 import { getPaymentChannels, registerPaymentChannel, updatePaymentChannel, deletePaymentChannel } from "../../../lib/PaymentChannel";
+import { requestMfaCode } from "../../../lib/Auth";
 
 function Field({ label, children, required }) {
   return (
@@ -29,6 +31,11 @@ export default function PaymentChannelsPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
+
+  // MFA states
+  const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
+  const [pendingMfaAction, setPendingMfaAction] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Delete state
   const [deletingId, setDeletingId] = useState(null);
@@ -101,17 +108,17 @@ export default function PaymentChannelsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDelete = async (id) => {
+  const handleDeleteInitiate = async (id) => {
     if (!window.confirm("Are you sure you want to delete this payment channel? This action cannot be undone.")) return;
     
     setDeletingId(id);
     setMessage({ type: "", text: "" });
     try {
-      await deletePaymentChannel(id);
-      setMessage({ type: "success", text: "Payment channel deleted." });
-      loadChannels();
+      await requestMfaCode();
+      setPendingMfaAction({ type: 'delete', id });
+      setIsMfaModalOpen(true);
     } catch (err) {
-      setMessage({ type: "error", text: err.message || "Failed to delete payment channel." });
+      setMessage({ type: "error", text: err.message || "Failed to initiate secure deletion." });
     } finally {
       setDeletingId(null);
     }
@@ -131,38 +138,71 @@ export default function PaymentChannelsPage() {
         is_active: formData.is_active,
       };
 
-      // Only send credentials if provided (don't overwrite with empty values on edit unless requested)
       if (formData.credentials_consumer_key || formData.credentials_consumer_secret || formData.credentials_passkey) {
         payload.credentials = {};
         if (formData.credentials_consumer_key) payload.credentials.consumer_key = formData.credentials_consumer_key;
         if (formData.credentials_consumer_secret) payload.credentials.consumer_secret = formData.credentials_consumer_secret;
         if (formData.credentials_passkey) payload.credentials.passkey = formData.credentials_passkey;
       } else if (!editingChannel) {
-        // If creating new, credentials object needs to be present
         payload.credentials = {};
       }
 
-      if (editingChannel) {
-        // Editing ignores psp_type change in most APIs, but we'll leave it in
-        await updatePaymentChannel(editingChannel.id, payload);
-        setMessage({ type: "success", text: "Payment channel updated successfully." });
-      } else {
-        await registerPaymentChannel(payload);
-        setMessage({ type: "success", text: "Payment channel registered successfully." });
-      }
-      
-      setIsFormOpen(false);
-      loadChannels();
+      await requestMfaCode();
+      setPendingMfaAction({
+        type: editingChannel ? 'update' : 'create',
+        payload,
+        id: editingChannel?.id
+      });
+      setIsMfaModalOpen(true);
     } catch (err) {
-      setMessage({ type: "error", text: err.message || (editingChannel ? "Failed to update channel." : "Failed to register channel.") });
+      setMessage({ type: "error", text: err.message || "Failed to initiate verification." });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleMfaVerify = async (code) => {
+    setIsVerifying(true);
+    setMessage({ type: "", text: "" });
+
+    try {
+      if (pendingMfaAction.type === 'delete') {
+        await deletePaymentChannel(pendingMfaAction.id, code);
+        setMessage({ type: "success", text: "Payment channel deleted." });
+      } else if (pendingMfaAction.type === 'update') {
+        await updatePaymentChannel(pendingMfaAction.id, pendingMfaAction.payload, code);
+        setMessage({ type: "success", text: "Payment channel updated successfully." });
+        setIsFormOpen(false);
+      } else if (pendingMfaAction.type === 'create') {
+        await registerPaymentChannel(pendingMfaAction.payload, code);
+        setMessage({ type: "success", text: "Payment channel registered successfully." });
+        setIsFormOpen(false);
+      }
+      
+      loadChannels();
+      setIsMfaModalOpen(false);
+      setPendingMfaAction(null);
+    } catch (err) {
+      setMessage({ type: "error", text: err.message || "Failed to complete action with provided code." });
+    } finally {
+      setIsVerifying(false);
+      // clear code input on parent state if it existed, but modal resets automatically since we remount/clear state on exit when remounted, wait modal internally holds 'code' state which doesn't clear until remounted.
     }
   };
 
   return (
     <div className="p-6 space-y-6 max-w-5xl">
       {/* Page header */}
+      <MfaVerificationModal
+        isOpen={isMfaModalOpen}
+        isLoading={isVerifying}
+        onClose={() => {
+          setIsMfaModalOpen(false);
+          setPendingMfaAction(null);
+        }}
+        onVerify={handleMfaVerify}
+      />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-[20px] font-bold tracking-tight text-zinc-900">Payment Channels</h1>
@@ -445,8 +485,8 @@ export default function PaymentChannelsPage() {
                       </svg>
                     </button>
                     <button 
-                      onClick={() => handleDelete(channel.id)}
-                      disabled={deletingId === channel.id}
+                      onClick={() => handleDeleteInitiate(channel.id)}
+                      disabled={deletingId === channel.id || isMfaModalOpen}
                       className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                       title="Delete channel"
                     >
