@@ -1,4 +1,5 @@
 import { Figtree, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const figtree = Figtree({
@@ -27,6 +28,7 @@ export const metadata = {
     "PesaGrid",
     "Kenyan SaaS",
     "automated invoicing",
+    "PesaGrid Team",
   ],
   authors: [{ name: "PesaGrid Team" }],
   openGraph: {
@@ -61,6 +63,21 @@ export default function RootLayout({ children }) {
       lang="en"
       className={`${figtree.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <Script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-79CFCLSTJS"
+        />
+        <Script id="google-analytics">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-79CFCLSTJS');
+          `}
+        </Script>
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
