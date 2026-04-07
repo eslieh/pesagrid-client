@@ -262,38 +262,70 @@ export default function DashboardPage() {
 
         {/* Peak Times Analysis */}
         <div className="grid grid-cols-2 gap-5">
-          <Card className="py-5 px-5 col-span-1">
-            <div className="flex items-start justify-between mb-1">
+          <Card className="py-5 px-5 col-span-2">
+            <div className="flex items-start justify-between mb-6">
               <div>
-                <p className="text-[10px] font-medium text-zinc-400">Peak Times</p>
-                <p className="text-[9px] text-zinc-300">Hourly Distribution</p>
+                <h4 className="text-[13px] font-semibold text-zinc-900 leading-none">Peak Collection Hours</h4>
+                <p className="text-[11px] text-zinc-400 mt-1.5">Highest volume windows throughout the day</p>
               </div>
             </div>
-            <div className="mt-4 space-y-2">
-              {peakTimes.slice(0, 6).map((item, i) => {
-                const maxPeak = Math.max(...peakTimes.map(p => p.total), 1);
-                return (
-                  <div key={i} className="space-y-1">
-                    <div className="flex items-center justify-between text-[9px] font-medium text-zinc-400">
-                      <span>{item.hour}:00</span>
-                      <span className="text-zinc-700">{formatCurrency(item.total)}</span>
-                    </div>
-                    <div className="h-1 w-full bg-zinc-50 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#fdc649]" 
-                        style={{ width: `${(item.total / maxPeak) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            
+            <div className="space-y-6">
+              <div className="flex flex-col gap-3">
+                <div className="flex h-12 w-full gap-1 items-end">
+                  {Array.from({ length: 24 }).map((_, hour) => {
+                    const peak = peakTimes.find(p => p.hour === hour) || { total: 0 };
+                    const maxPeakVal = Math.max(...peakTimes.map(p => p.total), 1);
+                    const intensity = peak.total > 0 ? Math.max(0.1, peak.total / maxPeakVal) : 0;
+                    
+                    return (
+                      <div key={hour} className="group relative flex-1 h-full flex items-end">
+                        <motion.div 
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "100%", opacity: 1 }}
+                          transition={{ delay: hour * 0.02 }}
+                          style={{ 
+                            // Darker colors for higher intensity: scaling lightness from 54% (brand lime) down to ~20%
+                            backgroundColor: intensity > 0 
+                              ? `hsl(88, 63%, ${54 - (intensity * 34)}%)` 
+                              : "#f4f4f5", 
+                            borderRadius: '4px'
+                          }}
+                          className="w-full transition-all duration-300 group-hover:ring-2 group-hover:ring-[#a3e635] group-hover:ring-offset-1"
+                        />
+                        
+                        {/* Tooltip */}
+                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-zinc-900 text-white text-[10px] py-1.5 px-2.5 rounded-xl whitespace-nowrap z-30 pointer-events-none shadow-xl flex flex-col items-center">
+                          <span className="text-zinc-400 text-[8px] font-bold uppercase tracking-wider">
+                            {hour.toString().padStart(2, "0")}:00 - {(hour + 1).toString().padStart(2, "0")}:00
+                          </span>
+                          <span className="font-bold">{formatCurrency(peak.total)}</span>
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-900 rotate-45" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Hour Labels */}
+                <div className="flex justify-between px-1 text-[9px] font-black text-zinc-300 uppercase tracking-widest">
+                  <span>00:00</span>
+                  <span>06:00</span>
+                  <span>12:00</span>
+                  <span>18:00</span>
+                  <span>23:59</span>
+                </div>
+              </div>
+
               {peakTimes.length === 0 && (
-                <p className="text-[10px] text-zinc-300 italic">No peak data</p>
+                <p className="text-[11px] text-zinc-400 italic text-center py-4 bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
+                  No collection patterns detected yet
+                </p>
               )}
             </div>
           </Card>
 
-          <div className="col-span-1 space-y-5">
+          <div className="col-span-2 grid grid-cols-2 gap-5">
             {/* Optimization Tips */}
             <Card className="py-5 px-5">
               <p className="text-[11px] text-zinc-400 mb-2">💡</p>
@@ -415,29 +447,53 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3.5">
-            {recentPayments.map((tx, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white bg-zinc-100">
-                  <span className="text-zinc-400">
-                    {tx.payer_name ? tx.payer_name.charAt(0) : tx.psp_type?.charAt(0)}
-                  </span>
+            {recentPayments.map((tx, i) => {
+              const confidence = tx.matched_confidence || 0;
+              const confidenceColor = confidence >= 0.85 ? "text-[#65a30d] bg-[#a3e635]/10" : 
+                                    confidence >= 0.7 ? "text-amber-600 bg-amber-50" : 
+                                    "text-zinc-400 bg-zinc-50";
+
+              return (
+                <div key={i} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-black text-white bg-zinc-100 border border-zinc-200">
+                      <span className="text-zinc-400">
+                        {tx.payer_name ? tx.payer_name.charAt(0) : (tx.psp_type?.charAt(0) || "P")}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] font-bold text-zinc-900 truncate">
+                          {tx.payer_name || tx.psp_ref}
+                        </p>
+                        {confidence > 0 && (
+                          <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${confidenceColor}`}>
+                            {Math.round(confidence * 100)}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-zinc-400 font-medium">Ref: {tx.psp_ref}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[11px] font-black text-zinc-900 leading-none">
+                        +{formatCurrency(tx.amount)}
+                      </p>
+                      <p className="text-[9px] text-[#6bb800] font-bold mt-1 uppercase tracking-tighter">
+                        {tx.status}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Match Context for Dashboard */}
+                  {tx.matched_obligation && (
+                    <div className="ml-12 p-2 rounded-xl bg-zinc-50 border border-zinc-100 flex items-center gap-2">
+                      <span className="text-[8px] font-black text-zinc-300 uppercase tracking-tighter">Matched</span>
+                      <span className="text-[9px] font-bold text-zinc-600 truncate">{tx.matched_obligation.description}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold text-zinc-800 truncate">
-                    {tx.payer_name || tx.psp_ref}
-                  </p>
-                  <p className="text-[9px] text-zinc-400">{formatDate(tx.ingested_at)}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[11px] font-semibold text-[#6bb800]">
-                    +{formatCurrency(tx.amount)}
-                  </p>
-                  <p className="text-[9px] text-[#a3e635] capitalize">
-                    {tx.status}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {recentPayments.length === 0 && (
               <div className="py-8 text-center">
                 <p className="text-[11px] text-zinc-400">No recent payments found</p>

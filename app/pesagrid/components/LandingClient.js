@@ -98,7 +98,7 @@ function ElasticBubbleSlider({ size = "md", className = "" }) {
 
 const navLinks = [
   { href: "#how-it-works", label: "How it works" },
-  { href: "#value", label: "Value" },
+  { href: "/pricing", label: "Pricing" },
   { href: "#use-cases", label: "Use cases" },
   { href: "#psps", label: "Supported PSPs" },
 ];
@@ -588,6 +588,90 @@ export default function LandingClient() {
           </div>
         </section>
 
+        {/* Pricing */}
+        <section id="pricing" className="border-t border-zinc-200/70 py-10 md:py-14">
+          <Reveal>
+            <div className="flex flex-col gap-3">
+              <h2 className="text-2xl font-semibold tracking-tight">
+                Simple, transparent pricing
+              </h2>
+              <p className="max-w-3xl text-zinc-600">
+                Choose a plan that fits your business size. All plans use a 
+                <strong> Wallet model</strong> for automated subscription and fee deductions.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                tier: "Starter",
+                price: 3000,
+                fee: "0.30",
+                wallet: "KES 5,000 min",
+                features: ["Single branch", "2 connected PSPs", "Manual import support"],
+              },
+              {
+                tier: "Growth",
+                price: 12000,
+                fee: "0.20",
+                wallet: "KES 15,000 min",
+                isFeatured: true,
+                features: ["Up to 10 points", "Unlimited PSPs", "Real-time sync"],
+              },
+              {
+                tier: "Enterprise",
+                price: "Custom",
+                fee: "0.10",
+                wallet: "Tailored min",
+                features: ["Unlimited points", "Custom APIs", "Priority support"],
+              },
+            ].map((p, idx) => (
+              <Reveal key={p.tier} delay={0.05 * idx}>
+                <Card className={`flex flex-col p-6 ${p.isFeatured ? 'ring-2 ring-lime-500/20' : ''}`}>
+                  <div className="mb-4">
+                    <div className="text-sm font-semibold text-zinc-500">{p.tier}</div>
+                    <div className="mt-1 flex items-baseline gap-1">
+                      <span className="text-2xl font-bold tracking-tight">
+                        {typeof p.price === 'number' ? formatKES(p.price) : p.price}
+                      </span>
+                      {typeof p.price === 'number' && <span className="text-xs text-zinc-500">/mo</span>}
+                    </div>
+                    <div className="mt-2 text-xs text-zinc-600">
+                      {p.fee} per reconciliation • KES 0.50 per SMS
+                    </div>
+                  </div>
+                  
+                  <div className="mb-6 flex-1 space-y-2">
+                    {p.features.map(f => (
+                      <div key={f} className="flex items-center gap-2 text-xs text-zinc-600">
+                        <span className="h-1.5 w-1.5 rounded-full bg-lime-500" />
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-xl bg-zinc-50 p-3 ring-1 ring-zinc-900/5">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Wallet Requirement</div>
+                    <div className="text-xs font-semibold text-zinc-900">{p.wallet}</div>
+                  </div>
+
+                  <Link
+                    href="/pricing"
+                    className={`mt-4 flex h-9 items-center justify-center rounded-full text-xs font-semibold transition-all ${
+                      p.isFeatured 
+                        ? 'bg-zinc-900 text-white hover:bg-zinc-800' 
+                        : 'border border-zinc-900/10 hover:bg-zinc-50'
+                    }`}
+                  >
+                    View Details
+                  </Link>
+                </Card>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
         {/* Supported PSPs */}
         <section id="psps" className="py-10 md:py-14">
           <Reveal>
@@ -740,14 +824,14 @@ export default function LandingClient() {
           <div className="flex flex-col gap-3 border-t border-zinc-200/70 pt-6 md:flex-row md:items-center md:justify-between">
             <div>© {year} Pesagrid. All rights reserved.</div>
             <div className="flex items-center gap-4">
-              {navLinks.slice(0, 3).map((l) => (
+              {navLinks.slice(0, 4).map((l) => (
                 <a key={l.href} className="hover:text-zinc-700" href={l.href}>
                   {l.label}
                 </a>
               ))}
-              <a className="hover:text-zinc-700" href="#demo">
-                Demo
-              </a>
+              <Link className="hover:text-zinc-700" href="/pricing">
+                Pricing Page
+              </Link>
             </div>
           </div>
         </footer>

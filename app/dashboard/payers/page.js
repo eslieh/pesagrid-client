@@ -405,15 +405,15 @@ export default function PayersPage() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <Link 
-                                href={`/dashboard/payers/${p.id}/transactions`}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-[#6bb800] hover:text-[#559400] bg-[#a3e635]/10 hover:bg-[#a3e635]/20 rounded-lg transition-colors"
-                              >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                                Transactions
-                              </Link>
+                                <Link 
+                                  href={`/dashboard/invoices?ledger_payer_id=${p.id}`}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-[#6bb800] hover:text-[#559400] bg-[#a3e635]/10 hover:bg-[#a3e635]/20 rounded-lg transition-colors"
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                  </svg>
+                                  Financial Standing
+                                </Link>
                               <button 
                                 onClick={() => handleDeletePayer(p.id)}
                                 className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

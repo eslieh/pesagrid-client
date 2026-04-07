@@ -5,11 +5,43 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "../../pesagrid/components/dashboard/UI";
 import { 
   getObligations, 
-  createObligation, 
-  cancelObligation,
-  getPayers, 
-  getPayerGroups 
+  unifiedCreate, 
+  voidObligation,
+  getPayerGroups,
+  getPayerLedger,
+  getRecurringPreview
 } from "../../../lib/Obligation";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+
+// ─────────────────────────────────────────────────────────────
+// Components
+// ─────────────────────────────────────────────────────────────
+
+function Modal({ isOpen, onClose, title, children }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl flex flex-col"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-zinc-100">
+          <h3 className="text-[16px] font-bold text-zinc-900">{title}</h3>
+          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-zinc-700 bg-zinc-50 hover:bg-zinc-100 rounded-xl transition-all">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {children}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 function Field({ label, children, required }) {
   return (
@@ -27,7 +59,6 @@ const inputCls =
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
-  const [payers, setPayers] = useState([]);
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [openActionId, setOpenActionId] = useState(null);
@@ -38,30 +69,40 @@ export default function InvoicesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
-  // Wizard state
-  const [audienceType, setAudienceType] = useState("single"); // "single" or "group"
-  const [selectedPayerId, setSelectedPayerId] = useState("");
-  const [selectedGroupId, setSelectedGroupId] = useState("");
+  // Payer Ledger State
+  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerData, setLedgerData] = useState(null);
 
+  // Unified Create state
   const [formData, setFormData] = useState({
+    // Payer details
+    name: "",
+    phone: "",
+    email: "",
+    account_no: "",
+    
+    // Invoice details
+    amount: "",
     description: "",
-    amount_due: "",
-    due_date: "",
+
+    // Recurring Setup
     is_recurring: false,
     recurrence_type: "monthly",
     start_date: "",
-    grace_period_days: 5,
     day_of_month: 1,
     day_of_week: 0,
     interval_days: 1,
+    grace_period_days: 5,
   });
 
+  const [recurringPreview, setRecurringPreview] = useState("");
   const [customFields, setCustomFields] = useState([]); // [{key: "", value: ""}]
 
   const loadInvoices = async () => {
     try {
       setIsLoading(true);
-      const invRes = await getObligations({ limit: 20 });
+      const invRes = await getObligations({ limit: 50 });
       if (invRes && invRes.items) setInvoices(invRes.items);
     } catch (err) {
       console.error("Failed to load invoices", err);
@@ -70,39 +111,87 @@ export default function InvoicesPage() {
     }
   };
 
-  const loadFormData = async () => {
+  const loadGroups = async () => {
     try {
-      const [payRes, groupRes] = await Promise.all([
-        getPayers({ limit: 100 }),
-        getPayerGroups({ limit: 100 })
-      ]);
-      if (payRes && payRes.items) setPayers(payRes.items);
+      const groupRes = await getPayerGroups({ limit: 100 });
       if (groupRes) setGroups(Array.isArray(groupRes) ? groupRes : (groupRes.items || []));
     } catch (err) {
-      console.error("Failed to load payers/groups", err);
+      console.error("Failed to load groups", err);
     }
   };
 
-  // Keep loadData as an alias used after cancel/submit to refresh the list
-  const loadData = loadInvoices;
+  const fetchLedger = async (payerId) => {
+    try {
+      setLedgerLoading(true);
+      setIsLedgerOpen(true);
+      const data = await getPayerLedger(payerId);
+      setLedgerData(data);
+    } catch (err) {
+      console.error("Failed to load ledger", err);
+      setMessage({ type: "error", text: "Failed to load payer ledger" });
+    } finally {
+      setLedgerLoading(false);
+    }
+  };
+
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     loadInvoices();
+    loadGroups();
+    
     // Default Dates
     const today = new Date();
-    const nextWeek = new Date(today);
-    nextWeek.setDate(today.getDate() + 7);
-    
-    const backendDayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1;
-
     setFormData(prev => ({
       ...prev,
-      due_date: nextWeek.toISOString().split('T')[0],
       start_date: today.toISOString().split('T')[0],
       day_of_month: Math.min(28, today.getDate()),
-      day_of_week: backendDayOfWeek
     }));
   }, []);
+
+  // Handle URL deep links for ledger
+  useEffect(() => {
+    const payerId = searchParams.get('ledger_payer_id');
+    if (payerId) {
+      fetchLedger(payerId);
+    }
+  }, [searchParams]);
+
+  // Reactive Recurring Preview
+  useEffect(() => {
+    if (!formData.is_recurring) {
+      setRecurringPreview("");
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await getRecurringPreview({
+          type: formData.recurrence_type.toUpperCase(),
+          amount: formData.amount,
+          start: formData.start_date ? new Date(formData.start_date).toISOString() : null,
+          interval: formData.interval_days,
+          dom: formData.day_of_month,
+          dow: formData.day_of_week
+        });
+        if (res && res.preview_sentence) {
+          setRecurringPreview(res.preview_sentence);
+        }
+      } catch (err) {
+        setRecurringPreview("");
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    formData.is_recurring, 
+    formData.recurrence_type, 
+    formData.amount, 
+    formData.start_date, 
+    formData.interval_days, 
+    formData.day_of_month, 
+    formData.day_of_week
+  ]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -110,19 +199,6 @@ export default function InvoicesPage() {
       ...prev, 
       [name]: type === 'checkbox' ? checked : value 
     }));
-    
-    // Auto sync start_date and config fields for convenience
-    if (name === "start_date" && value) {
-      const d = new Date(value);
-      if (!isNaN(d.getTime())) {
-        const backendDayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1;
-        setFormData((prev) => ({ 
-          ...prev, 
-          day_of_month: Math.min(28, d.getDate()),
-          day_of_week: backendDayOfWeek
-        }));
-      }
-    }
   };
 
   const handleAddCustomField = () => {
@@ -143,29 +219,19 @@ export default function InvoicesPage() {
     setIsFormOpen(true);
     setCurrentStep(1);
     setMessage({type:"", text:""});
-    setAudienceType("single");
-    setSelectedPayerId("");
-    setSelectedGroupId("");
-    // Lazy-load payers and groups only when the wizard is opened
-    if (payers.length === 0 || groups.length === 0) {
-      loadFormData();
-    }
+    // Reset form data for new entry if needed
   };
 
   const nextStep = () => {
     setMessage({type:"", text:""});
     if (currentStep === 1) {
-      if (audienceType === "single" && !selectedPayerId) {
-        setMessage({ type: "error", text: "Please select a specific payer." });
-        return;
-      }
-      if (audienceType === "group" && !selectedGroupId) {
-        setMessage({ type: "error", text: "Please select a group." });
+      if (!formData.name) {
+        setMessage({ type: "error", text: "Payer name is required." });
         return;
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      if (!formData.description || !formData.amount_due) {
+      if (!formData.description || !formData.amount) {
         setMessage({ type: "error", text: "Please fill in all required fields." });
         return;
       }
@@ -183,93 +249,67 @@ export default function InvoicesPage() {
     setMessage({ type: "", text: "" });
 
     try {
-      // Build base payload
-      const meta = {};
+      const payload = {
+        name: formData.name,
+        phone: formData.phone || undefined,
+        email: formData.email || undefined,
+        account_no: formData.account_no || undefined,
+        amount: parseFloat(formData.amount),
+        description: formData.description,
+        is_recurring: formData.is_recurring,
+        meta: {}
+      };
+
       customFields.forEach(f => {
         if (f.key.trim() && f.value.trim()) {
-          meta[f.key.trim()] = f.value.trim();
+          payload.meta[f.key.trim()] = f.value.trim();
         }
       });
 
-      const basePayload = {
-        description: formData.description,
-        amount_due: parseFloat(formData.amount_due),
-        currency: "KES",
-        due_date: formData.due_date ? new Date(formData.due_date).toISOString() : null,
-        is_recurring: formData.is_recurring,
-        meta: meta,
-      };
-
       if (formData.is_recurring) {
-        let sd = new Date(formData.start_date);
-        const recurringConfig = {
-          start_date: sd.toISOString(),
-          auto_generate: true
+        payload.recurring = {
+          recurrence_type: formData.recurrence_type.toUpperCase(),
+          start_date: formData.start_date ? new Date(formData.start_date).toISOString() : new Date().toISOString(),
+          day_of_month: parseInt(formData.day_of_month) || 1,
+          day_of_week: parseInt(formData.day_of_week) || 0,
+          interval_days: parseInt(formData.interval_days) || 1,
+          grace_period_days: parseInt(formData.grace_period_days) || 0
         };
-
-        if (formData.recurrence_type === 'monthly') {
-          recurringConfig.recurrence_type = 'monthly';
-          recurringConfig.day_of_month = parseInt(formData.day_of_month) || 1;
-          recurringConfig.grace_period_days = parseInt(formData.grace_period_days) || 0;
-        } else if (formData.recurrence_type === 'weekly') {
-          recurringConfig.recurrence_type = 'weekly';
-          recurringConfig.day_of_week = parseInt(formData.day_of_week) || 0;
-          recurringConfig.grace_period_days = parseInt(formData.grace_period_days) || 0;
-        } else if (formData.recurrence_type === 'daily') {
-          recurringConfig.recurrence_type = 'custom';
-          recurringConfig.interval_days = 1;
-        } else if (formData.recurrence_type === 'custom') {
-          recurringConfig.recurrence_type = 'custom';
-          recurringConfig.interval_days = parseInt(formData.interval_days) || 1;
-        }
-
-        basePayload.recurring = recurringConfig;
       }
 
-      // Determine targets
-      let targets = [];
-      if (audienceType === "single") {
-        targets.push(selectedPayerId);
-      } else {
-        // Find all payers in selected group
-        targets = payers.filter(p => p.group_id === selectedGroupId).map(p => p.id);
-        if (targets.length === 0) {
-          throw new Error("No payers found in the selected group.");
-        }
-      }
-
-      // Fan out requests
-      const promises = targets.map(payerId => 
-        createObligation({ ...basePayload, payer_id: payerId })
-      );
-
-      await Promise.all(promises);
+      const res = await unifiedCreate(payload);
       
-      setMessage({ type: "success", text: `Successfully generated ${targets.length} invoice(s).` });
+      setMessage({ type: "success", text: "Invoice created successfully." });
       setIsFormOpen(false);
-      loadData();
+      loadInvoices();
       
       // Reset
-      setFormData(prev => ({ ...prev, description: "", amount_due: "", is_recurring: false }));
+      setFormData(prev => ({ 
+        ...prev, 
+        name: "", phone: "", email: "", account_no: "",
+        description: "", amount: "", is_recurring: false 
+      }));
       setCustomFields([]);
       
     } catch (err) {
-      setMessage({ type: "error", text: err.message || "Failed to create invoices." });
+      setMessage({ type: "error", text: err.message || "Failed to create invoice." });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCancel = async (obligationId) => {
-    if (!confirm("Are you sure you want to cancel this obligation? This action cannot be undone.")) return;
+  const handleVoid = async (obligationId) => {
+    const reason = window.prompt("Reason for voiding this invoice:", "Entered wrong amount");
+    if (reason === null) return;
+    
     try {
       setCancellingId(obligationId);
       setOpenActionId(null);
-      await cancelObligation(obligationId);
-      setMessage({ type: "success", text: "Obligation cancelled successfully." });
-      loadData();
+      await voidObligation(obligationId, reason);
+      setMessage({ type: "success", text: "Invoice voided successfully." });
+      loadInvoices();
     } catch (err) {
-      setMessage({ type: "error", text: err.message || "Failed to cancel obligation." });
+      setMessage({ type: "error", text: err.message || "Failed to void invoice." });
     } finally {
       setCancellingId(null);
     }
@@ -277,32 +317,22 @@ export default function InvoicesPage() {
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
-      case 'paid': return 'bg-[#a3e635]/20 text-[#6bb800]';
+      case 'settled': return 'bg-[#a3e635]/20 text-[#6bb800]';
       case 'pending': return 'bg-[#fdc649]/20 text-[#d97706]';
+      case 'partial': return 'bg-orange-100 text-orange-600';
       case 'overdue': return 'bg-red-100 text-red-600';
-      case 'cancelled': return 'bg-zinc-100 text-zinc-500';
+      case 'voided': return 'bg-zinc-100 text-zinc-500';
+      case 'rolled': return 'bg-blue-100 text-blue-600';
       default: return 'bg-zinc-100 text-zinc-500';
     }
   };
 
-  // Derived Review Data
   const formatReviewTarget = () => {
-    if (audienceType === "single") {
-      const p = payers.find(p => p.id === selectedPayerId);
-      return { 
-        title: "Single Payer", 
-        val: p ? `${p.name} (${p.account_no || 'No Reference'})` : 'Unknown', 
-        count: 1 
-      };
-    } else {
-      const g = groups.find(g => g.id === selectedGroupId);
-      const members = payers.filter(p => p.group_id === selectedGroupId).length;
-      return { 
-        title: "Entire Group", 
-        val: g ? g.name : 'Unknown', 
-        count: members 
-      };
-    }
+    return { 
+      title: "Payer", 
+      val: formData.name, 
+      count: 1 
+    };
   };
 
   return (
@@ -380,7 +410,7 @@ export default function InvoicesPage() {
                   <div className="h-8 w-8 flex items-center justify-center rounded-xl bg-zinc-900 text-white">
                     {currentStep}
                   </div>
-                  {currentStep === 1 ? 'Choose Audience' : currentStep === 2 ? 'Invoice Details' : 'Review & Send'}
+                  {currentStep === 1 ? 'Payer Information' : currentStep === 2 ? 'Invoice Details' : 'Review & Send'}
                 </h2>
 
                 <div className="flex gap-2">
@@ -390,82 +420,58 @@ export default function InvoicesPage() {
                 </div>
               </div>
 
-              {/* Step 1 */}
+              {/* Step 1: Payer Details */}
               {currentStep === 1 && (
                 <div className="space-y-6">
-                  <p className="text-[13px] text-zinc-500">Who do you want to bill?</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setAudienceType("single")}
-                      className={`flex flex-col items-start p-5 rounded-2xl border-2 transition-all text-left ${
-                        audienceType === "single"
-                          ? "border-zinc-900 bg-zinc-50"
-                          : "border-zinc-100 bg-white hover:border-zinc-200"
-                      }`}
-                    >
-                      <div className="h-10 w-10 flex shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 mb-4">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      </div>
-                      <h4 className="text-[14px] font-bold text-zinc-900">Specific Payer</h4>
-                      <p className="text-[12px] text-zinc-500 mt-1 mt-1">Generate a single invoice for a specific individual.</p>
-                    </button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                    <Field label="Full Name / Company" required>
+                      <input
+                        name="name"
+                        type="text"
+                        value={formData.name}
+                        onChange={handleChange}
+                        className={inputCls}
+                        placeholder="e.g. John Doe, Unit 4A Ltd"
+                        required
+                      />
+                    </Field>
 
-                    <button
-                      type="button"
-                      onClick={() => setAudienceType("group")}
-                      className={`flex flex-col items-start p-5 rounded-2xl border-2 transition-all text-left ${
-                        audienceType === "group"
-                          ? "border-zinc-900 bg-zinc-50"
-                          : "border-zinc-100 bg-white hover:border-zinc-200"
-                      }`}
-                    >
-                      <div className="h-10 w-10 flex shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-900 mb-4">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                      </div>
-                      <h4 className="text-[14px] font-bold text-zinc-900">Entire Group</h4>
-                      <p className="text-[12px] text-zinc-500 mt-1">Bulk generate invoices for an entire cohort.</p>
-                    </button>
-                  </div>
+                    <Field label="Account/Reference No.">
+                      <input
+                        name="account_no"
+                        type="text"
+                        value={formData.account_no}
+                        onChange={handleChange}
+                        className={inputCls}
+                        placeholder="e.g. UNIT-3B, STU-5542"
+                      />
+                    </Field>
 
-                  <div className="pt-4 max-w-xl">
-                    {audienceType === "single" ? (
-                      <Field label="Select Payer">
-                         <select
-                           value={selectedPayerId}
-                           onChange={(e) => setSelectedPayerId(e.target.value)}
-                           className={inputCls}
-                         >
-                           <option value="" disabled>Search or choose a payer...</option>
-                           {payers.map(p => (
-                             <option key={p.id} value={p.id}>{p.name} {p.account_no ? `(${p.account_no})` : ''}</option>
-                           ))}
-                         </select>
-                      </Field>
-                    ) : (
-                      <Field label="Select Group">
-                         <select
-                           value={selectedGroupId}
-                           onChange={(e) => setSelectedGroupId(e.target.value)}
-                           className={inputCls}
-                         >
-                           <option value="" disabled>Choose a predefined group...</option>
-                           {groups.map(g => {
-                             const membersCount = payers.filter(p => p.group_id === g.id).length;
-                             return (
-                               <option key={g.id} value={g.id}>{g.name} ({membersCount} members)</option>
-                             );
-                           })}
-                         </select>
-                         <p className="text-[11px] text-zinc-500 mt-1">Each member will receive their own individual invoice.</p>
-                      </Field>
-                    )}
+                    <Field label="Phone Number">
+                      <input
+                        name="phone"
+                        type="tel"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        className={inputCls}
+                        placeholder="2547XXXXXXXX"
+                      />
+                    </Field>
+
+                    <Field label="Email Address">
+                      <input
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className={inputCls}
+                        placeholder="john@example.com"
+                      />
+                    </Field>
                   </div>
+                  <p className="text-[11px] text-zinc-400">
+                    Unified Flow: If the payer exists (by phone or account), we update them. If not, a new payer record is created automatically.
+                  </p>
                 </div>
               )}
 
@@ -487,11 +493,11 @@ export default function InvoicesPage() {
 
                     <Field label="Amount Due (KES)" required>
                       <input
-                        name="amount_due"
+                        name="amount"
                         type="number"
                         min="0"
                         step="0.01"
-                        value={formData.amount_due}
+                        value={formData.amount}
                         onChange={handleChange}
                         className={inputCls}
                         placeholder="0.00"
@@ -625,6 +631,25 @@ export default function InvoicesPage() {
                               required
                             />
                           </Field>
+
+                          <div className="md:col-span-3 mt-2">
+                            <AnimatePresence>
+                              {recurringPreview && (
+                                <motion.div 
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  className="rounded-lg bg-[#a3e635]/10 border border-[#a3e635]/20 p-3 flex items-start gap-2.5"
+                                >
+                                  <svg className="h-4 w-4 text-[#6bb800] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <p className="text-[11px] font-medium text-zinc-700 leading-relaxed italic">
+                                    {recurringPreview}
+                                  </p>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -710,7 +735,7 @@ export default function InvoicesPage() {
                     </div>
                     <div>
                       <span className="block text-zinc-400 font-medium uppercase tracking-widest text-[9px]">Amount Due</span>
-                      <span className="font-semibold text-zinc-900">KES {parseFloat(formData.amount_due || 0).toLocaleString()}</span>
+                      <span className="font-semibold text-zinc-900">KES {parseFloat(formData.amount || 0).toLocaleString()}</span>
                     </div>
                     <div>
                       <span className="block text-zinc-400 font-medium uppercase tracking-widest text-[9px]">Type</span>
@@ -865,12 +890,23 @@ export default function InvoicesPage() {
                         {inv.status}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-zinc-500">
+                    <td className="px-6 py-4 text-zinc-500 font-medium">
                       {new Date(inv.recurring_config?.next_due_date || inv.due_date).toLocaleDateString(undefined, {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'
                       })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <button 
+                        onClick={() => fetchLedger(inv.payer_id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-[#6bb800] hover:text-[#559400] bg-[#a3e635]/10 hover:bg-[#a3e635]/20 rounded-lg transition-colors"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        Ledger
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="relative inline-block">
@@ -890,24 +926,32 @@ export default function InvoicesPage() {
 
                         {openActionId === inv.id && (
                           <>
-                            {/* Backdrop to close dropdown */}
                             <div
                               className="fixed inset-0 z-10"
                               onClick={() => setOpenActionId(null)}
                             />
                             <div className="absolute right-0 top-8 z-20 w-44 rounded-xl border border-zinc-100 bg-white shadow-lg py-1 overflow-hidden">
-                              {inv.status !== 'cancelled' ? (
+                              <Link
+                                href={`/dashboard/transactions?account_no=${inv.payer?.account_no || ""}`}
+                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[12px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors border-b border-zinc-50"
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                View Transactions
+                              </Link>
+                              {inv.status !== 'voided' ? (
                                 <button
-                                  onClick={() => handleCancel(inv.id)}
+                                  onClick={() => handleVoid(inv.id)}
                                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[12px] font-medium text-red-600 hover:bg-red-50 transition-colors"
                                 >
                                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                   </svg>
-                                  Cancel Obligation
+                                  Void Invoice
                                 </button>
                               ) : (
-                                <div className="px-4 py-2.5 text-[12px] text-zinc-400 italic">Already cancelled</div>
+                                <div className="px-4 py-2.5 text-[12px] text-zinc-400 italic font-medium">Already voided</div>
                               )}
                             </div>
                           </>

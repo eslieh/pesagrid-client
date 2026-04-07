@@ -14,6 +14,8 @@ import {
   createTemplate,
   updateTemplate,
 } from "../../../lib/Notifications";
+import CollectionPointWizard from "./CollectionPointWizard";
+import CollectionPointSettings from "./CollectionPointSettings";
 
 // ─── Default SMS body ────────────────────────────────────────────────────────
 const DEFAULT_SMS_BODY =
@@ -68,6 +70,7 @@ export default function CollectionPointsPage() {
 
   // Form states - CP
   const [isCPFormOpen, setIsCPFormOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingCP, setEditingCP] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -81,6 +84,17 @@ export default function CollectionPointsPage() {
 
   const [message, setMessage] = useState({ type: "", text: "" });
 
+  // Filtering & Pagination
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [cpType, setCpType] = useState("");
+  const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const [cpFormData, setCpFormData] = useState({
     name: "",
     account_no: "",
@@ -90,15 +104,17 @@ export default function CollectionPointsPage() {
     meta: "",
   });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const cpRes = await getCollectionPoints();
-      if (cpRes) {
-        setCollectionPoints(cpRes);
-        const totalsRes = await Promise.all(cpRes.map((cp) => getCollectionPointTotals(cp.id)));
+      const cpRes = await getCollectionPoints(debouncedSearch, cpType || null);
+      if (cpRes && cpRes.items) {
+        setCollectionPoints(cpRes.items);
+        setTotalCount(cpRes.total || 0);
+        
+        const totalsRes = await Promise.all(cpRes.items.map((cp) => getCollectionPointTotals(cp.id)));
         const totalsMap = {};
-        cpRes.forEach((cp, i) => {
+        cpRes.items.forEach((cp, i) => {
           totalsMap[cp.id] =
             totalsRes[i] && totalsRes[i].total_collected !== undefined
               ? totalsRes[i].total_collected
@@ -111,7 +127,7 @@ export default function CollectionPointsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [debouncedSearch, cpType]);
 
   const loadTemplate = async () => {
     try {
@@ -128,6 +144,9 @@ export default function CollectionPointsPage() {
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  useEffect(() => {
     loadTemplate();
   }, []);
 
@@ -234,6 +253,7 @@ export default function CollectionPointsPage() {
 
   const handleOpenEditCP = (cp) => {
     setEditingCP(cp);
+    setIsSettingsOpen(true);
     setCpFormData({
       name: cp.name,
       account_no: cp.account_no,
@@ -287,15 +307,48 @@ export default function CollectionPointsPage() {
   return (
     <div className="p-6 space-y-6 max-w-5xl">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-[20px] font-bold tracking-tight text-zinc-900">Collection Points</h1>
-          <p className="mt-0.5 text-[12px] font-medium text-zinc-400">
-            Define targets for bulk collections (fleet, campaigns, routes)
+          <h1 className="text-[28px] font-black tracking-tight text-zinc-900">
+            Collection Points
+          </h1>
+          <p className="text-[13px] text-zinc-500 font-medium mt-1">
+            Managing <span className="text-zinc-900 font-bold">{totalCount}</span> specialized collection instruments
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Search & Filter Bar */}
+          <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-2xl p-1.5 shadow-sm">
+            <div className="relative flex items-center">
+              <svg className="absolute left-3 h-3.5 w-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input 
+                type="text"
+                placeholder="Search name or account..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-transparent border-none text-[12px] font-bold text-zinc-900 focus:outline-none focus:ring-0 pl-9 pr-4 py-1.5 w-48"
+              />
+            </div>
+            
+            <div className="h-6 w-[1px] bg-zinc-100" />
+            
+            <select 
+              value={cpType}
+              onChange={(e) => setCpType(e.target.value)}
+              className="bg-transparent border-none text-[12px] font-black text-zinc-500 hover:text-zinc-900 focus:outline-none focus:ring-0 cursor-pointer px-3 py-1.5 appearance-none"
+            >
+              <option value="">All Types</option>
+              <option value="fleet">Fleet</option>
+              <option value="campaign">Campaign</option>
+              <option value="donation">Donation</option>
+              <option value="branch">Branch</option>
+              <option value="event">Event</option>
+            </select>
+          </div>
+
           {!isSmsSettingsOpen && (
             <button
               onClick={handleOpenSmsSettings}
@@ -501,141 +554,33 @@ export default function CollectionPointsPage() {
       </AnimatePresence>
 
       {/* CP Form panel */}
-      <AnimatePresence>
-        {isCPFormOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <Card className="py-6 px-6 relative border-[#a3e635]/30 ring-1 ring-[#a3e635]/20 shadow-sm">
-              <button
-                onClick={() => setIsCPFormOpen(false)}
-                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-700 bg-zinc-50 hover:bg-zinc-100 rounded-lg transition-colors"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      <CollectionPointWizard
+        isOpen={isCPFormOpen}
+        onClose={() => {
+          setIsCPFormOpen(false);
+          setEditingCP(null);
+        }}
+        editingCP={null} // Wizard now only used for creation
+        onSave={() => {
+          setIsCPFormOpen(false);
+          loadData();
+          setMessage({ type: "success", text: "Collection point created successfully." });
+        }}
+      />
 
-              <h2 className="text-[14px] font-semibold text-zinc-900 mb-6 flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#a3e635] text-zinc-900">
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </span>
-                {editingCP ? "Edit Collection Point" : "New Collection Point"}
-              </h2>
-
-              <form onSubmit={handleCreateCP}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-                  <Field label="Point Name" required>
-                    <input
-                      name="name"
-                      type="text"
-                      value={cpFormData.name}
-                      onChange={handleCPChange}
-                      className={inputCls}
-                      placeholder="e.g. Matatu KAB-123C"
-                      required
-                    />
-                  </Field>
-
-                  <Field label="Account/Target No." required>
-                    <input
-                      name="account_no"
-                      type="text"
-                      value={cpFormData.account_no}
-                      onChange={handleCPChange}
-                      className={inputCls}
-                      placeholder="e.g. KAB-123C"
-                      required
-                    />
-                  </Field>
-
-                  <div className="col-span-1 md:col-span-2">
-                    <Field label="Description">
-                      <input
-                        name="description"
-                        type="text"
-                        value={cpFormData.description}
-                        onChange={handleCPChange}
-                        className={inputCls}
-                        placeholder="Optional tracking notes"
-                      />
-                    </Field>
-                  </div>
-
-                  {/* Toggles */}
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <label className="relative flex cursor-pointer items-center">
-                        <input
-                          type="checkbox"
-                          name="is_active"
-                          className="peer sr-only"
-                          checked={cpFormData.is_active}
-                          onChange={handleCPChange}
-                        />
-                        <div className="h-5 w-9 rounded-full bg-zinc-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-zinc-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#a3e635] peer-checked:after:translate-x-full peer-checked:after:border-white" />
-                      </label>
-                      <span className="text-[12px] font-medium text-zinc-600">Active</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <label className="relative flex cursor-pointer items-center">
-                        <input
-                          type="checkbox"
-                          name="sms_acknowledgement"
-                          className="peer sr-only"
-                          checked={cpFormData.sms_acknowledgement}
-                          onChange={handleCPChange}
-                        />
-                        <div className="h-5 w-9 rounded-full bg-zinc-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-zinc-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#a3e635] peer-checked:after:translate-x-full peer-checked:after:border-white" />
-                      </label>
-                      <span className="text-[12px] font-medium text-zinc-600">SMS Acknowledgement</span>
-                    </div>
-                  </div>
-
-                  {/* Meta JSON */}
-                  <div className="col-span-1 md:col-span-2">
-                    <Field label="Meta (JSON)" hint="Optional. Must be valid JSON or leave blank.">
-                      <textarea
-                        name="meta"
-                        rows={3}
-                        value={cpFormData.meta}
-                        onChange={handleCPChange}
-                        className={`${inputCls} resize-y font-mono text-[12px]`}
-                        placeholder='{"key": "value"}'
-                        spellCheck={false}
-                      />
-                    </Field>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="mt-8 pt-5 border-t border-zinc-100 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCPFormOpen(false)}
-                    className="px-5 py-2.5 text-[12px] font-semibold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 rounded-xl bg-[#a3e635] px-6 py-2.5 text-[12px] font-bold text-zinc-900 shadow-sm shadow-[#a3e635]/30 transition-all hover:bg-[#9de500] hover:shadow-md active:scale-95 disabled:opacity-50"
-                  >
-                    {isSubmitting ? "Saving..." : "Save Point"}
-                  </button>
-                </div>
-              </form>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* CP Settings Drawer */}
+      <CollectionPointSettings 
+        isOpen={isSettingsOpen}
+        onClose={() => {
+          setIsSettingsOpen(false);
+          setEditingCP(null);
+        }}
+        collectionPoint={editingCP}
+        onSave={() => {
+          loadData();
+          setMessage({ type: "success", text: "Settings saved successfully." });
+        }}
+      />
 
       {/* Collection point list */}
       {isLoading ? (
