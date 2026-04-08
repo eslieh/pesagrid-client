@@ -110,7 +110,7 @@ function TransactionsRegistryContent() {
             <motion.h1 
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="text-[42px] font-black tracking-tighter text-zinc-900 leading-none"
+              className="text-[30px] font-bold tracking-tight text-zinc-900 leading-none"
             >
               Transaction Registry
             </motion.h1>
@@ -118,7 +118,7 @@ function TransactionsRegistryContent() {
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.1 }}
-              className="text-[14px] font-medium text-zinc-400 mt-4 uppercase tracking-[0.2em]"
+              className="text-[10px] font-medium text-zinc-400 mt-4 uppercase tracking-[0.2em]"
             >
               Real-time Ledger & Context Insight
             </motion.p>

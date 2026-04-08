@@ -45,8 +45,8 @@ function SidebarItem({ icon, label, href, active = false, badge, onClick }) {
   );
 }
 
-export default function Sidebar({ currentPath, profile, onLogout }) {
-  const plan = profile?.meta?.plan || profile?.plan || "Free Plan";
+export default function Sidebar({ currentPath, profile, subscription, onLogout }) {
+  const plan = subscription?.plan?.name || profile?.meta?.plan || profile?.plan || (subscription?.status === "TRIAL" ? "Trial Plan" : "Free Plan");
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 w-60 border-r border-zinc-100 bg-white">
@@ -128,6 +128,17 @@ export default function Sidebar({ currentPath, profile, onLogout }) {
           />
 
           <SidebarItem
+            label="Billing & Plans"
+            href="/dashboard/billing"
+            active={currentPath.startsWith("/dashboard/billing")}
+            icon={
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={iconStroke} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            }
+          />
+
+          <SidebarItem
             label="Notification Templates"
             href="/dashboard/notification-templates"
             active={currentPath === "/dashboard/notification-templates"}
@@ -170,9 +181,11 @@ export default function Sidebar({ currentPath, profile, onLogout }) {
                 Current: {plan}
               </span>
             </div>
-            <button className="w-full rounded-xl bg-white py-2 text-[11px] font-bold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-95">
-              Upgrade now
-            </button>
+            <Link href="/dashboard/billing">
+              <button className="w-full rounded-xl bg-white py-2 text-[11px] font-bold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-95">
+                Manage Billing
+              </button>
+            </Link>
           </div>
 
           <button

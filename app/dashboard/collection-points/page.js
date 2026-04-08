@@ -309,7 +309,7 @@ export default function CollectionPointsPage() {
       {/* Header */}
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-[28px] font-black tracking-tight text-zinc-900">
+          <h1 className="text-[20px] font-bold tracking-tight text-zinc-900">
             Collection Points
           </h1>
           <p className="text-[13px] text-zinc-500 font-medium mt-1">
