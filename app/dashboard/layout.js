@@ -7,10 +7,13 @@ import Sidebar from "../pesagrid/components/dashboard/Sidebar";
 import Header from "../pesagrid/components/dashboard/Header";
 import { getCurrentUser, logout as logoutApi } from "../../lib/Auth";
 import { getBusinessProfile, createBusinessProfile } from "../../lib/Account";
+import { getSubscription } from "../../lib/Billing";
+import Link from "next/link";
 
 export default function DashboardLayout({ children }) {
   const [profile, setProfile] = useState(null);
   const [user, setUser] = useState(null);
+  const [subscription, setSubscription] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const pathname = usePathname();
 
@@ -20,7 +23,15 @@ export default function DashboardLayout({ children }) {
         const userData = await getCurrentUser();
         setUser(userData);
         
-        const businessProfile = await getBusinessProfile();
+        const [businessProfile, subData] = await Promise.all([
+          getBusinessProfile(),
+          getSubscription().catch(() => null)
+        ]);
+        
+        if (subData) {
+          setSubscription(subData);
+        }
+
         if (!businessProfile) {
           const newProfile = await createBusinessProfile({
             id: crypto.randomUUID(),
@@ -73,20 +84,34 @@ export default function DashboardLayout({ children }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f5f6f7] text-zinc-900 font-sans">
-      <Sidebar 
-        currentPath={pathname}
-        profile={profile} 
-        onLogout={handleLogout} 
-      />
-
-      <main className="flex-1 ml-60 bg-[#f5f6f7]">
-        <Header 
-          user={user} 
-          onAddWidget={() => {}} 
+    <div className="flex min-h-screen bg-[#f5f6f7] text-zinc-900 font-sans flex-col">
+      {subscription?.status === "SUSPENDED" && (
+        <div className="z-50 w-full bg-red-600 px-4 py-2 text-center text-[13px] font-medium text-white shadow-sm">
+          Your account is suspended due to insufficient wallet funds. Top up your wallet within the grace period to avoid being blocked.{" "}
+          <Link href="/dashboard/billing" className="font-bold underline">
+            Resolve now &rarr;
+          </Link>
+        </div>
+      )}
+      <div className="flex flex-1 relative w-full">
+        <Sidebar 
+          currentPath={pathname}
+          profile={profile} 
+          subscription={subscription}
+          onLogout={handleLogout} 
         />
-        {children}
-      </main>
+
+        <main className="flex-1 ml-60 bg-[#f5f6f7] flex flex-col min-h-full">
+          <Header 
+            user={user} 
+            profile={profile}
+            onAddWidget={() => {}} 
+          />
+          <div className="flex-1 overflow-auto">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
