@@ -104,6 +104,7 @@ export default function DashboardLayout({ children }) {
         <main className="flex-1 ml-60 bg-[#f5f6f7] flex flex-col min-h-full">
           <Header 
             user={user} 
+            profile={profile}
             onAddWidget={() => {}} 
           />
           <div className="flex-1 overflow-auto">
