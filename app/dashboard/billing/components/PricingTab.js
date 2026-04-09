@@ -114,10 +114,6 @@ export default function PricingTab({ onRequireTopup }) {
 
               <div className="flex-1 space-y-4 text-[13px] text-zinc-600">
                 <div className="flex justify-between border-b border-zinc-50 pb-2">
-                  <span>Recon Fee</span>
-                  <span className="font-semibold text-zinc-900">KES {parseFloat(plan.recon_fee_kes).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-b border-zinc-50 pb-2">
                   <span>SMS/Notification</span>
                   <span className="font-semibold text-zinc-900">KES {parseFloat(plan.notification_fee_kes).toFixed(2)}</span>
                 </div>
@@ -127,7 +123,9 @@ export default function PricingTab({ onRequireTopup }) {
                 </div>
                 <div className="flex justify-between pb-2">
                   <span>Max Outlets</span>
-                  <span className="font-semibold text-zinc-900">{plan.max_branches} Branches / {plan.max_psps} PSPs</span>
+                  <span className="font-semibold text-zinc-900">
+                    {plan.max_branches === -1 ? "∞" : plan.max_branches} Branches&nbsp;/&nbsp;{plan.max_psps === -1 ? "∞" : plan.max_psps} PSPs
+                  </span>
                 </div>
                 {/* Features */}
                 <ul className="mt-4 space-y-2">
