@@ -6,6 +6,7 @@ import { Card } from "../../pesagrid/components/dashboard/UI";
 import { MfaVerificationModal } from "../../pesagrid/components/dashboard/MfaVerificationModal";
 import { getPaymentChannels, registerPaymentChannel, updatePaymentChannel, deletePaymentChannel } from "../../../lib/PaymentChannel";
 import { requestMfaCode } from "../../../lib/Auth";
+import { getSubscription } from "../../../lib/Billing";
 
 function Field({ label, children, required }) {
   return (
@@ -24,7 +25,10 @@ const inputCls =
 export default function PaymentChannelsPage() {
   const [channels, setChannels] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
+  // Subscription / plan limits
+  const [subscription, setSubscription] = useState(null);
+
   // Create / Edit state
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState(null);
@@ -39,6 +43,11 @@ export default function PaymentChannelsPage() {
 
   // Delete state
   const [deletingId, setDeletingId] = useState(null);
+
+  // Derived limit helpers
+  const maxPsps = subscription?.plan?.max_psps ?? null;            // null = not loaded yet
+  const isUnlimited = maxPsps === -1;
+  const atLimit = !isUnlimited && maxPsps !== null && channels.length >= maxPsps;
 
   const [formData, setFormData] = useState({
     psp_type: "mpesa",
@@ -66,6 +75,9 @@ export default function PaymentChannelsPage() {
 
   useEffect(() => {
     loadChannels();
+    getSubscription()
+      .then((sub) => setSubscription(sub))
+      .catch(() => {});
   }, []);
 
   const handleChange = (e) => {
@@ -77,6 +89,7 @@ export default function PaymentChannelsPage() {
   };
 
   const handleOpenCreate = () => {
+    if (atLimit) return; // guard – button should already be disabled
     setEditingChannel(null);
     setFormData({
       psp_type: "mpesa",
@@ -210,18 +223,60 @@ export default function PaymentChannelsPage() {
             Manage your incoming payment providers and webhooks
           </p>
         </div>
-        {!isFormOpen && (
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-[12px] font-semibold text-white shadow-sm transition-all hover:bg-zinc-800 hover:shadow-md active:scale-95"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Channel
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Usage counter */}
+          {maxPsps !== null && (
+            <span className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg ${
+              atLimit
+                ? "bg-red-50 text-red-600"
+                : "bg-zinc-100 text-zinc-600"
+            }`}>
+              {channels.length}&nbsp;/&nbsp;{isUnlimited ? "∞" : maxPsps} channels
+            </span>
+          )}
+          {!isFormOpen && (
+            <button
+              onClick={atLimit ? undefined : handleOpenCreate}
+              disabled={atLimit}
+              title={atLimit ? `Your ${subscription?.plan?.name || "current"} plan allows up to ${maxPsps} payment channel${maxPsps === 1 ? "" : "s"}. Upgrade to add more.` : ""}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-[12px] font-semibold shadow-sm transition-all ${
+                atLimit
+                  ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+                  : "bg-zinc-900 text-white hover:bg-zinc-800 hover:shadow-md active:scale-95"
+              }`}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Channel
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Plan limit upgrade nudge */}
+      {atLimit && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-amber-900">
+              PSP limit reached on the <span className="font-black">{subscription?.plan?.name || "current"}</span> plan
+            </p>
+            <p className="mt-0.5 text-[12px] text-amber-700">
+              You&apos;ve used all {maxPsps} payment channel slot{maxPsps === 1 ? "" : "s"} included in your plan.
+              Upgrade to unlock more channels.
+            </p>
+          </div>
+          <a
+            href="/dashboard/billing"
+            className="flex-shrink-0 rounded-xl bg-amber-500 px-4 py-2 text-[12px] font-bold text-white shadow-sm hover:bg-amber-600 transition-colors"
+          >
+            Upgrade Plan
+          </a>
+        </div>
+      )}
 
       {message.text && (
         <div 
@@ -434,7 +489,7 @@ export default function PaymentChannelsPage() {
           <p className="mt-1 text-[12px] text-zinc-500 max-w-sm">
             Register a provider like M-PESA to start processing incoming payments.
           </p>
-          {!isFormOpen && (
+          {!isFormOpen && !atLimit && (
             <button
               onClick={handleOpenCreate}
               className="mt-6 flex items-center gap-2 rounded-xl bg-white border border-zinc-200 px-5 py-2.5 text-[12px] font-semibold text-zinc-900 shadow-sm transition-all hover:bg-zinc-50 hover:border-zinc-300 active:scale-95"

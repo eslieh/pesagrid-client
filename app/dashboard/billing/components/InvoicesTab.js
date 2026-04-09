@@ -70,10 +70,7 @@ export default function InvoicesTab() {
                   <span>Subscription Base</span>
                   <span className="font-semibold text-zinc-900">KES {parseFloat(inv.subscription_fee_kes).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Recon Usage ({inv.recon_count})</span>
-                  <span className="font-semibold text-zinc-900">KES {parseFloat(inv.recon_fee_total_kes).toFixed(2)}</span>
-                </div>
+
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Notifications ({inv.notification_count})</span>
                   <span className="font-semibold text-zinc-900">KES {parseFloat(inv.notification_fee_total_kes).toFixed(2)}</span>
