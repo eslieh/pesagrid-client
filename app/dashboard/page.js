@@ -9,6 +9,7 @@ import {
   getPeakTimes, 
   getRecentPayments
 } from "../../lib/Dashboard";
+import Link from "next/link";
 import { 
   getNotificationSettings,
   updateNotificationSettings
@@ -24,7 +25,7 @@ const barColor = {
 };
 
 const PERIODS = [
-  { label: "1D", interval: "hour",  days: 1   },
+  { label: "1D", interval: "hour",  days: 0   }, // Restored 'hour' now that API support is added
   { label: "7D", interval: "day",   days: 7   },
   { label: "1M", interval: "day",   days: 30  },
   { label: "3M", interval: "week",  days: 90  },
@@ -34,13 +35,19 @@ const PERIODS = [
 function getDateRange(days) {
   const end = new Date();
   const start = new Date();
-  start.setDate(end.getDate() - days);
+  if (days > 0) {
+    start.setDate(end.getDate() - days);
+  }
+  
   const fmt = (d) => d.toISOString().split("T")[0] + "T00:00:00";
-  return { startISO: fmt(start), endISO: fmt(end) };
+  // For 'today', we want to see up to now. For historical ranges, up to the end of the day.
+  const endISO = days === 0 ? new Date(new Date().getTime() + (3*60*60*1000)).toISOString() : new Date().toISOString(); 
+  
+  return { startISO: fmt(start), endISO };
 }
 
 export default function DashboardPage() {
-  const [activePeriod, setActivePeriod] = useState(PERIODS[1]); // default 7D
+  const [activePeriod, setActivePeriod] = useState(PERIODS[0]); // default to Today
   const [metrics, setMetrics] = useState({
     total_collected: 0,
     total_matched: 0,
@@ -63,11 +70,12 @@ export default function DashboardPage() {
     async function fetchData() {
       try {
         setLoading(true);
+        const { startISO, endISO } = getDateRange(PERIODS[0].days);
         const [m, t, p, r, ns] = await Promise.all([
-          getDashboardMetrics(),
-          getCollectionTrends(activePeriod.interval),
-          getPeakTimes(),
-          getRecentPayments(null, 0, 7),
+          getDashboardMetrics(null, startISO, endISO),
+          getCollectionTrends(PERIODS[0].interval, null, startISO, endISO),
+          getPeakTimes(null, startISO, endISO),
+          getRecentPayments(null, 0, 7, startISO, endISO),
           getNotificationSettings().catch(() => ({ 
             payment_notifications_enabled: false, 
             payment_notification_channels: ["email"] 
@@ -580,12 +588,12 @@ export default function DashboardPage() {
         <Card className="py-5 px-5">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-[13px] font-semibold text-zinc-900">Recent Payments</h4>
-            <button className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500">
+            <Link href="/dashboard/transactions" className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500">
               Recent
               <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-            </button>
+            </Link>
           </div>
 
           <div className="flex justify-between text-[10px] font-medium text-zinc-300 mb-3 px-0.5">
