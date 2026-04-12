@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card, StatWidget, ProgressBar } from "../pesagrid/components/dashboard/UI";
 import { 
   getDashboardMetrics, 
   getCollectionTrends, 
   getPeakTimes, 
-  getRecentPayments 
+  getRecentPayments
 } from "../../lib/Dashboard";
+import { 
+  getNotificationSettings,
+  updateNotificationSettings
+} from "../../lib/Notifications";
 
 /* ───────────────────────────────────────────────
    Bar chart colours to match the reference image
@@ -46,24 +50,34 @@ export default function DashboardPage() {
   const [trends, setTrends] = useState([]);
   const [peakTimes, setPeakTimes] = useState([]);
   const [recentPayments, setRecentPayments] = useState([]);
+  const [notifSettings, setNotifSettings] = useState({
+    payment_notifications_enabled: false,
+    payment_notification_channels: ["email"]
+  });
   const [loading, setLoading] = useState(true);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [notifUpdating, setNotifUpdating] = useState(false);
 
   // Initial load — fetch everything
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
-        const [m, t, p, r] = await Promise.all([
+        const [m, t, p, r, ns] = await Promise.all([
           getDashboardMetrics(),
           getCollectionTrends(activePeriod.interval),
           getPeakTimes(),
-          getRecentPayments(null, 0, 7)
+          getRecentPayments(null, 0, 7),
+          getNotificationSettings().catch(() => ({ 
+            payment_notifications_enabled: false, 
+            payment_notification_channels: ["email"] 
+          }))
         ]);
         setMetrics(m);
         setTrends(t.trends || []);
         setPeakTimes(p.peaks || []);
         setRecentPayments(r.items || []);
+        setNotifSettings(ns);
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
       } finally {
@@ -73,6 +87,50 @@ export default function DashboardPage() {
     fetchData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleToggleNotifications = async () => {
+    try {
+      setNotifUpdating(true);
+      const updated = {
+        ...notifSettings,
+        payment_notifications_enabled: !notifSettings.payment_notifications_enabled
+      };
+      
+      setNotifSettings(updated);
+      await updateNotificationSettings(updated);
+    } catch (err) {
+      console.error("Failed to update notification settings:", err);
+      setNotifSettings(notifSettings);
+    } finally {
+      setNotifUpdating(false);
+    }
+  };
+
+  const handleToggleChannel = async (channel) => {
+    try {
+      setNotifUpdating(true);
+      const isCurrentlyEnabled = (notifSettings.payment_notification_channels || []).includes(channel);
+      let newChannels = [];
+      if (isCurrentlyEnabled) {
+        newChannels = notifSettings.payment_notification_channels.filter(c => c !== channel);
+      } else {
+        newChannels = [...(notifSettings.payment_notification_channels || []), channel];
+      }
+      
+      const updated = {
+        ...notifSettings,
+        payment_notification_channels: newChannels
+      };
+      
+      setNotifSettings(updated);
+      await updateNotificationSettings(updated);
+    } catch (err) {
+      console.error("Failed to update channel:", err);
+      setNotifSettings(notifSettings);
+    } finally {
+      setNotifUpdating(false);
+    }
+  };
 
   // Re-fetch trends + metrics when period changes (skip on initial mount)
   const isFirstRender = typeof window !== "undefined";
@@ -406,6 +464,95 @@ export default function DashboardPage() {
 
       {/* ── Column 3: Transactions (Right) ──── */}
       <div className="col-span-12 lg:col-span-4 space-y-5 pt-12">
+        {/* Notification Preferences */}
+        <Card className="py-5 px-5">
+           <div className="flex items-center justify-between mb-4">
+            <h4 className="text-[13px] font-semibold text-zinc-900">Activity Alerts</h4>
+            <div className={`h-2 w-2 rounded-full animate-pulse ${notifSettings.payment_notifications_enabled ? 'bg-[#a3e635]' : 'bg-zinc-300'}`} />
+          </div>
+          
+          <div className="space-y-3">
+            {/* Global Switch */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 border border-zinc-100 transition-all hover:bg-white hover:shadow-sm">
+               <div className="flex-1 pr-4">
+                  <p className="text-[11px] font-bold text-zinc-900 leading-tight">Payments Flow</p>
+                  <p className="text-[9px] text-zinc-400 mt-1 leading-relaxed capitalize">
+                    {notifSettings.payment_notifications_enabled ? "Alerts are currently live" : "Alerts are currently muted"}
+                  </p>
+               </div>
+               <button 
+                  onClick={handleToggleNotifications}
+                  disabled={notifUpdating}
+                  className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none ${notifSettings.payment_notifications_enabled ? 'bg-[#a3e635]' : 'bg-zinc-200'}`}
+               >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${notifSettings.payment_notifications_enabled ? 'translate-x-5.5' : 'translate-x-1'}`} />
+               </button>
+            </div>
+
+            {/* Channel Options */}
+            <AnimatePresence>
+              {notifSettings.payment_notifications_enabled && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden space-y-2"
+                >
+                  {/* Email Channel */}
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-dashed border-zinc-200 hover:border-zinc-400 transition-all">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${notifSettings.payment_notification_channels.includes('email') ? 'bg-[#a3e635]/10 text-[#6bb800]' : 'bg-zinc-100 text-zinc-400'}`}>
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-[10px] font-bold text-zinc-700">Email Alerts</span>
+                    </div>
+                    <button 
+                      onClick={() => handleToggleChannel('email')}
+                      disabled={notifUpdating}
+                      className={`h-4 w-4 rounded border-2 transition-all flex items-center justify-center ${notifSettings.payment_notification_channels.includes('email') ? 'bg-[#6bb800] border-[#6bb800]' : 'bg-transparent border-zinc-200 hover:border-zinc-300'}`}
+                    >
+                      {notifSettings.payment_notification_channels.includes('email') && (
+                        <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor font-black">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* SMS Channel */}
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-dashed border-zinc-200 hover:border-zinc-400 transition-all">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${notifSettings.payment_notification_channels.includes('sms') ? 'bg-[#a3e635]/10 text-[#6bb800]' : 'bg-zinc-100 text-zinc-400'}`}>
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-[10px] font-bold text-zinc-700">SMS Alerts</span>
+                    </div>
+                    <button 
+                      onClick={() => handleToggleChannel('sms')}
+                      disabled={notifUpdating}
+                      className={`h-4 w-4 rounded border-2 transition-all flex items-center justify-center ${notifSettings.payment_notification_channels.includes('sms') ? 'bg-[#6bb800] border-[#6bb800]' : 'bg-transparent border-zinc-200 hover:border-zinc-300'}`}
+                    >
+                      {notifSettings.payment_notification_channels.includes('sms') && (
+                        <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <p className="mt-4 text-[9px] text-zinc-400 leading-relaxed italic border-t border-zinc-50 pt-3">
+             <span className="text-amber-600 font-bold">Billing:</span> System notification charges apply for SMS and high-frequency alerts.
+          </p>
+        </Card>
+
         {/* Quick actions or info */}
         <Card className="py-5 px-5">
           <h4 className="text-[13px] font-semibold text-zinc-900 mb-4">Reports & Export</h4>

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import GlobalSearchHeader from "./components/GlobalSearchHeader";
 import TransactionItem from "./components/TransactionItem";
+import ManualMatchModal from "./components/ManualMatchModal";
 import { getTransactions } from "../../../lib/Transaction";
 import { getCollectionPoints } from "../../../lib/CollectionPoint";
 import { getPaymentChannels } from "../../../lib/PaymentChannel";
@@ -20,13 +21,17 @@ function TransactionsRegistryContent() {
   const [skip, setSkip] = useState(0);
   const limit = 20;
 
+  // Manual Matching Modal State
+  const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
+  const [transactionToMatch, setTransactionToMatch] = useState(null);
+
   // Metadata for filters
   const [collectionPoints, setCollectionPoints] = useState([]);
   const [pspConfigs, setPspConfigs] = useState([]);
 
   // Filter states
-  const [search, setSearch] = useState(searchParams.get("search") || "");
-  const [accountNo, setAccountNo] = useState(searchParams.get("account_no") || "");
+  const [search, setSearch] = useState(searchParams.get("search") || searchParams.get("account_no") || "");
+  const [accountNo, setAccountNo] = useState("");
   const [collectionPointId, setCollectionPointId] = useState(searchParams.get("cp_id") || "");
   const [datePreset, setDatePreset] = useState("month");
   const [dateRange, setDateRange] = useState({ 
@@ -60,6 +65,29 @@ function TransactionsRegistryContent() {
     fetchMetadata();
   }, []);
 
+  // Sync DatePreset with DateRange
+  useEffect(() => {
+    if (datePreset === "custom") return;
+    
+    const end = new Date();
+    const start = new Date();
+    
+    if (datePreset === "today") {
+      // Start is identical to End (Today)
+    } else if (datePreset === "week") {
+      start.setDate(end.getDate() - 7);
+    } else if (datePreset === "month") {
+      start.setDate(end.getDate() - 30);
+    } else if (datePreset === "year") {
+      start.setDate(end.getDate() - 365);
+    }
+
+    setDateRange({
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    });
+  }, [datePreset]);
+
   // Main Fetcher
   const fetchData = useCallback(async (isLoadMore = false) => {
     try {
@@ -91,16 +119,24 @@ function TransactionsRegistryContent() {
       setHasMore((res.items || []).length === limit);
     } catch (err) {
       console.error("Failed to fetch transactions:", err);
+      if (!isLoadMore) {
+        setTransactions([]);
+        setHasMore(false);
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
   }, [search, accountNo, collectionPointId, dateRange, amountMin, amountMax, sort, skip]);
-
   // Initial load
   useEffect(() => {
     fetchData();
   }, []);
+  // Formatting helpers used in Modal
+  const handleOpenMatch = (tx) => {
+    setTransactionToMatch(tx);
+    setIsMatchModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50/50 pb-20">
@@ -189,6 +225,7 @@ function TransactionsRegistryContent() {
                   formatCurrency={formatCurrency}
                   formatDate={formatDate}
                   getInitials={getInitials}
+                  onMatch={handleOpenMatch}
                 />
               ))}
 
@@ -208,6 +245,19 @@ function TransactionsRegistryContent() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Manual Matching Modal */}
+      {transactionToMatch && (
+        <ManualMatchModal 
+          isOpen={isMatchModalOpen}
+          onClose={() => setIsMatchModalOpen(false)}
+          transaction={transactionToMatch}
+          formatCurrency={formatCurrency}
+          onMatched={() => {
+            fetchData(false);
+          }}
+        />
+      )}
     </div>
   );
 }

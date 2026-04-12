@@ -9,11 +9,13 @@ export const badgeColors = {
   matched: "bg-[#a3e635]/20 text-[#65a30d]",
 };
 
-export default function TransactionItem({ tx, idx, formatCurrency, formatDate, getInitials }) {
+export default function TransactionItem({ tx, idx, formatCurrency, formatDate, getInitials, onMatch }) {
   const confidence = tx.matched_confidence || 0;
   const confidenceColor = confidence >= 0.85 ? "text-[#65a30d] bg-[#a3e635]/10" : 
                         confidence >= 0.7 ? "text-amber-600 bg-amber-50" : 
                         "text-zinc-400 bg-zinc-50";
+
+  const isMatched = tx.status?.toLowerCase() === "matched" || tx.status?.toLowerCase() === "categorized";
 
   return (
     <div className="group p-5 hover:bg-zinc-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -87,10 +89,16 @@ export default function TransactionItem({ tx, idx, formatCurrency, formatDate, g
           <p className="text-[11px] font-medium text-zinc-500 mt-1">{formatDate(tx.ingested_at)}</p>
         </div>
         
-        <div className="w-24 text-right">
+        <div className="flex flex-col items-end gap-2">
           <span className={`inline-flex px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm border border-black/5 ${badgeColors[tx.status?.toLowerCase()] || badgeColors.pending}`}>
             {tx.status || "Pending"}
           </span>
+          <button 
+            onClick={() => onMatch(tx)}
+            className="text-[10px] font-bold text-zinc-400 hover:text-zinc-900 uppercase tracking-tight underline underline-offset-4 decoration-zinc-200 hover:decoration-zinc-900 transition-all"
+          >
+            {isMatched ? "Rematch" : "Match Manual"}
+          </button>
         </div>
       </div>
 

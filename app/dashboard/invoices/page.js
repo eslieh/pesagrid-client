@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card } from "../../pesagrid/components/dashboard/UI";
+import { Card, StatWidget } from "../../pesagrid/components/dashboard/UI";
 import { 
-  getObligations, 
   unifiedCreate, 
-  voidObligation,
   getPayerGroups,
-  getPayerLedger,
-  getRecurringPreview
+  getRecurringPreview,
+  getGlobalLedger,
+  getUpcomingLedger
 } from "../../../lib/Obligation";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -17,31 +16,6 @@ import Link from "next/link";
 // ─────────────────────────────────────────────────────────────
 // Components
 // ─────────────────────────────────────────────────────────────
-
-function Modal({ isOpen, onClose, title, children }) {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-sm">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl flex flex-col"
-      >
-        <div className="flex items-center justify-between p-6 border-b border-zinc-100">
-          <h3 className="text-[16px] font-bold text-zinc-900">{title}</h3>
-          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-zinc-700 bg-zinc-50 hover:bg-zinc-100 rounded-xl transition-all">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6">
-          {children}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
 
 function Field({ label, children, required }) {
   return (
@@ -58,21 +32,23 @@ const inputCls =
   "w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-[13px] font-medium text-zinc-900 outline-none transition-all placeholder:text-zinc-300 focus:border-zinc-400 focus:bg-white focus:ring-2 focus:ring-zinc-900/5";
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState([]);
+  // New Ledger State
+  const [ledgerBoard, setLedgerBoard] = useState(null);
+  const [upcomingPayments, setUpcomingPayments] = useState(null);
+  
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [openActionId, setOpenActionId] = useState(null);
-  const [cancellingId, setCancellingId] = useState(null);
   
+  // Filters
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
-
-  // Payer Ledger State
-  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
-  const [ledgerLoading, setLedgerLoading] = useState(false);
-  const [ledgerData, setLedgerData] = useState(null);
 
   // Unified Create state
   const [formData, setFormData] = useState({
@@ -85,6 +61,7 @@ export default function InvoicesPage() {
     // Invoice details
     amount: "",
     description: "",
+    due_date: "",
 
     // Recurring Setup
     is_recurring: false,
@@ -99,46 +76,62 @@ export default function InvoicesPage() {
   const [recurringPreview, setRecurringPreview] = useState("");
   const [customFields, setCustomFields] = useState([]); // [{key: "", value: ""}]
 
-  const loadInvoices = async () => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
-      const invRes = await getObligations({ limit: 50 });
-      if (invRes && invRes.items) setInvoices(invRes.items);
+      const groupRes = await getPayerGroups({ limit: 100 });
+      if (groupRes) setGroups(Array.isArray(groupRes) ? groupRes : (groupRes.items || []));
+      
+      await fetchGlobalLedger();
+      await fetchUpcoming();
     } catch (err) {
-      console.error("Failed to load invoices", err);
+      console.error("Failed to load page data", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadGroups = async () => {
+  const fetchGlobalLedger = async () => {
     try {
-      const groupRes = await getPayerGroups({ limit: 100 });
-      if (groupRes) setGroups(Array.isArray(groupRes) ? groupRes : (groupRes.items || []));
+      setIsLoading(true);
+      const res = await getGlobalLedger({
+        status_filter: statusFilter !== "all" ? statusFilter : undefined,
+        group_id: groupFilter !== "all" ? groupFilter : undefined,
+        page: currentPage,
+        page_size: pageSize
+      });
+      setLedgerBoard(res);
     } catch (err) {
-      console.error("Failed to load groups", err);
+      console.error("Failed to load global ledger", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const fetchLedger = async (payerId) => {
+  const fetchUpcoming = async () => {
     try {
-      setLedgerLoading(true);
-      setIsLedgerOpen(true);
-      const data = await getPayerLedger(payerId);
-      setLedgerData(data);
+      const res = await getUpcomingLedger({ 
+        days: 30,
+        group_id: groupFilter !== "all" ? groupFilter : undefined 
+      });
+      setUpcomingPayments(res);
     } catch (err) {
-      console.error("Failed to load ledger", err);
-      setMessage({ type: "error", text: "Failed to load payer ledger" });
-    } finally {
-      setLedgerLoading(false);
+      console.error("Failed to load upcoming payments", err);
     }
   };
+
+  useEffect(() => {
+    fetchGlobalLedger();
+  }, [statusFilter, groupFilter, currentPage]);
+
+  useEffect(() => {
+    fetchUpcoming();
+  }, [groupFilter]);
 
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    loadInvoices();
-    loadGroups();
+    loadData();
     
     // Default Dates
     const today = new Date();
@@ -148,14 +141,6 @@ export default function InvoicesPage() {
       day_of_month: Math.min(28, today.getDate()),
     }));
   }, []);
-
-  // Handle URL deep links for ledger
-  useEffect(() => {
-    const payerId = searchParams.get('ledger_payer_id');
-    if (payerId) {
-      fetchLedger(payerId);
-    }
-  }, [searchParams]);
 
   // Reactive Recurring Preview
   useEffect(() => {
@@ -219,7 +204,6 @@ export default function InvoicesPage() {
     setIsFormOpen(true);
     setCurrentStep(1);
     setMessage({type:"", text:""});
-    // Reset form data for new entry if needed
   };
 
   const nextStep = () => {
@@ -260,6 +244,10 @@ export default function InvoicesPage() {
         meta: {}
       };
 
+      if (!formData.is_recurring && formData.due_date) {
+        payload.due_date = new Date(formData.due_date).toISOString();
+      }
+
       customFields.forEach(f => {
         if (f.key.trim() && f.value.trim()) {
           payload.meta[f.key.trim()] = f.value.trim();
@@ -281,13 +269,14 @@ export default function InvoicesPage() {
       
       setMessage({ type: "success", text: "Invoice created successfully." });
       setIsFormOpen(false);
-      loadInvoices();
+      fetchGlobalLedger();
+      fetchUpcoming();
       
       // Reset
       setFormData(prev => ({ 
         ...prev, 
         name: "", phone: "", email: "", account_no: "",
-        description: "", amount: "", is_recurring: false 
+        description: "", amount: "", due_date: "", is_recurring: false 
       }));
       setCustomFields([]);
       
@@ -298,26 +287,10 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleVoid = async (obligationId) => {
-    const reason = window.prompt("Reason for voiding this invoice:", "Entered wrong amount");
-    if (reason === null) return;
-    
-    try {
-      setCancellingId(obligationId);
-      setOpenActionId(null);
-      await voidObligation(obligationId, reason);
-      setMessage({ type: "success", text: "Invoice voided successfully." });
-      loadInvoices();
-    } catch (err) {
-      setMessage({ type: "error", text: err.message || "Failed to void invoice." });
-    } finally {
-      setCancellingId(null);
-    }
-  };
-
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case 'settled': return 'bg-[#a3e635]/20 text-[#6bb800]';
+      case 'clear': return 'bg-[#a3e635]/20 text-[#6bb800]';
       case 'pending': return 'bg-[#fdc649]/20 text-[#d97706]';
       case 'partial': return 'bg-orange-100 text-orange-600';
       case 'overdue': return 'bg-red-100 text-red-600';
@@ -335,8 +308,12 @@ export default function InvoicesPage() {
     };
   };
 
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "KES" }).format(val || 0);
+  };
+
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -367,7 +344,7 @@ export default function InvoicesPage() {
           }`}
         >
           {message.type === 'success' ? (
-            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           ) : (
@@ -395,6 +372,7 @@ export default function InvoicesPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
           >
+           {/* Form content mapping perfectly kept here */}
             <Card className="py-8 px-8 relative border-zinc-200 shadow-md ring-4 ring-zinc-50/50">
               <button 
                 onClick={() => setIsFormOpen(false)}
@@ -822,149 +800,261 @@ export default function InvoicesPage() {
         )}
       </AnimatePresence>
 
-      {/* List of Invoices */}
-      {isLoading ? (
-        <div className="flex h-48 items-center justify-center">
-          <div className="h-7 w-7 rounded-full border-[3px] border-zinc-100 border-t-zinc-400 animate-spin" />
-        </div>
-      ) : invoices.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-50 border border-zinc-100 text-zinc-400">
-            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+      {!isFormOpen && (
+        <>
+          {/* Summary Widgets Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <Card className="px-5 py-4">
+               <StatWidget 
+                 label="Total Payers" 
+                 value={(ledgerBoard?.total_payers || 0).toLocaleString()} 
+                 trendUp 
+               />
+            </Card>
+            <Card className="px-5 py-4">
+               <StatWidget 
+                 label="Total Expected" 
+                 value={formatCurrency(ledgerBoard?.total_balance + ledgerBoard?.total_paid || 0)} 
+                 trendUp 
+               />
+            </Card>
+            <Card className="px-5 py-4">
+               <StatWidget 
+                 label="Collected" 
+                 value={formatCurrency(ledgerBoard?.total_paid || 0)} 
+                 trendUp 
+               />
+            </Card>
+            <Card className="px-5 py-4 border-l-4 border-l-red-400">
+               <StatWidget 
+                 label="Outstanding" 
+                 value={formatCurrency(ledgerBoard?.total_balance || 0)} 
+                 trendUp={false} 
+               />
+            </Card>
           </div>
-          <h3 className="text-[15px] font-semibold text-zinc-900">No invoices generated</h3>
-          <p className="mt-1 text-[12px] text-zinc-500 max-w-sm">
-            Ready to request a payment? Create a single bill or bulk generate them for an entire group.
-          </p>
-          {!isFormOpen && (
-            <button
-              onClick={openForm}
-              className="mt-6 flex items-center gap-2 rounded-xl bg-white border border-zinc-200 px-5 py-2.5 text-[12px] font-semibold text-zinc-900 shadow-sm transition-all hover:bg-zinc-50 hover:border-zinc-300 active:scale-95"
-            >
-              Create your first invoice
-            </button>
-          )}
-        </Card>
-      ) : (
-        <Card className="overflow-hidden noPadding">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[12px] whitespace-nowrap">
-              <thead>
-                <tr className="border-b border-zinc-100 bg-zinc-50/50 text-zinc-400 uppercase tracking-wider text-[10px] font-semibold">
-                  <th className="px-6 py-4">Description</th>
-                  <th className="px-6 py-4">Payer</th>
-                  <th className="px-6 py-4">Amount</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Due/Next Date</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 bg-white">
-                {invoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-zinc-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {inv.is_recurring && (
-                          <span className="flex items-center justify-center p-1 rounded-md bg-zinc-100">
-                            <svg className="h-3 w-3 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Recurring">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                          </span>
-                        )}
-                        <span className="font-semibold text-zinc-900">{inv.description}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-zinc-700">{inv.payer?.name || "Unknown"}</p>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">{inv.payer?.account_no}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-zinc-900">
-                        {inv.currency || "KES"} {inv.amount_due?.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className={`inline-flex px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusColor(inv.status)}`}>
-                        {inv.status}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-zinc-500 font-medium">
-                      {new Date(inv.recurring_config?.next_due_date || inv.due_date).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <button 
-                        onClick={() => fetchLedger(inv.payer_id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-[#6bb800] hover:text-[#559400] bg-[#a3e635]/10 hover:bg-[#a3e635]/20 rounded-lg transition-colors"
-                      >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        Ledger
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="relative inline-block">
-                        <button
-                          onClick={() => setOpenActionId(openActionId === inv.id ? null : inv.id)}
-                          disabled={cancellingId === inv.id}
-                          className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors disabled:opacity-40"
-                        >
-                          {cancellingId === inv.id ? (
-                            <div className="h-4 w-4 rounded-full border-2 border-zinc-300 border-t-zinc-600 animate-spin" />
-                          ) : (
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                            </svg>
-                          )}
-                        </button>
 
-                        {openActionId === inv.id && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-10"
-                              onClick={() => setOpenActionId(null)}
-                            />
-                            <div className="absolute right-0 top-8 z-20 w-44 rounded-xl border border-zinc-100 bg-white shadow-lg py-1 overflow-hidden">
-                              <Link
-                                href={`/dashboard/transactions?account_no=${inv.payer?.account_no || ""}`}
-                                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[12px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors border-b border-zinc-50"
+          <div className="grid grid-cols-12 gap-6 items-start">
+            {/* Main Payer Ledger Table */}
+            <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200">
+                <div className="flex items-center gap-2">
+                  {['all', 'pending', 'overdue', 'settled', 'clear'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => { setStatusFilter(tab); setCurrentPage(1); }}
+                      className={`relative px-4 py-3 text-[13px] font-bold transition-colors ${
+                        statusFilter === tab ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
+                      }`}
+                    >
+                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      {ledgerBoard?.counts && (
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px]">
+                          {tab === 'all' ? (ledgerBoard.total_payers || 0) : (ledgerBoard.counts[tab] || 0)}
+                        </span>
+                      )}
+                      {statusFilter === tab && (
+                        <motion.div
+                          layoutId="activeTab"
+                          className="absolute bottom-0 left-0 right-0 h-[2px] bg-zinc-900"
+                          initial={false}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="mb-2">
+                  <select
+                    value={groupFilter}
+                    onChange={(e) => { setGroupFilter(e.target.value); setCurrentPage(1); }}
+                    className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-bold text-zinc-700 outline-none transition-all hover:bg-zinc-50 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-900/5 shadow-sm min-w-[140px] appearance-none"
+                  >
+                    <option value="all">All Groups</option>
+                    {groups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="flex h-48 items-center justify-center">
+                  <div className="h-7 w-7 rounded-full border-[3px] border-zinc-100 border-t-zinc-400 animate-spin" />
+                </div>
+              ) : !ledgerBoard?.items || ledgerBoard.items.length === 0 ? (
+                <Card className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-50 border border-zinc-100 text-zinc-400">
+                    <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-[15px] font-semibold text-zinc-900">No payers found</h3>
+                  <p className="mt-1 text-[12px] text-zinc-500 max-w-sm">
+                    Ready to request a payment? Create a single bill or bulk generate them for an entire group.
+                  </p>
+                </Card>
+              ) : (
+                <Card className="overflow-hidden noPadding">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[12px] whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b border-zinc-100 bg-zinc-50 text-zinc-400 uppercase tracking-wider text-[10px] font-semibold">
+                          <th className="px-5 py-4">Payer</th>
+                          <th className="px-5 py-4">Status</th>
+                          <th className="px-5 py-4">Invoices</th>
+                          <th className="px-5 py-4">Total Paid</th>
+                          <th className="px-5 py-4">Total Balance</th>
+                          <th className="px-5 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {ledgerBoard.items.map((payer) => (
+                          <tr key={payer.payer_id} className="hover:bg-zinc-50/50 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <p className="font-semibold text-zinc-900">{payer.payer_name || "Unknown"}</p>
+                              <p className="text-[10px] text-zinc-400 mt-0.5">{payer.payer_account_no || payer.payer_phone || "No Account Info"}</p>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className={`inline-flex px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusColor(payer.payer_status)}`}>
+                                {payer.payer_status}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 font-medium text-zinc-700">
+                              <span className="flex items-center gap-1.5">
+                                {payer.total_obligations} Active
+                                {payer.overdue_count > 0 && (
+                                  <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">
+                                    {payer.overdue_count} Overdue
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-zinc-500 font-medium">
+                              {formatCurrency(payer.total_paid)}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className="font-semibold text-zinc-900">
+                                {formatCurrency(payer.total_balance)}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-right">
+                              <Link 
+                                href={`/dashboard/payers/${payer.payer_id}/ledger`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 rounded-lg shadow-sm transition-all active:scale-95"
                               >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                View Ledger
+                                <svg className="h-3.5 w-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
-                                View Transactions
                               </Link>
-                              {inv.status !== 'voided' ? (
-                                <button
-                                  onClick={() => handleVoid(inv.id)}
-                                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[12px] font-medium text-red-600 hover:bg-red-50 transition-colors"
-                                >
-                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                  </svg>
-                                  Void Invoice
-                                </button>
-                              ) : (
-                                <div className="px-4 py-2.5 text-[12px] text-zinc-400 italic font-medium">Already voided</div>
-                              )}
-                            </div>
-                          </>
-                        )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Pagination placeholder if pages > 1 */}
+                  {ledgerBoard.total_payers > pageSize && (
+                    <div className="flex items-center justify-between border-t border-zinc-100 px-5 py-3 bg-zinc-50/50">
+                      <span className="text-[11px] text-zinc-500">
+                        Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, ledgerBoard.total_payers)} of {ledgerBoard.total_payers}
+                      </span>
+                      <div className="flex gap-1">
+                        <button 
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage(prev => prev - 1)}
+                          className="px-3 py-1 bg-white border border-zinc-200 rounded text-[11px] font-medium disabled:opacity-50"
+                        >
+                          Prev
+                        </button>
+                        <button 
+                          disabled={currentPage * pageSize >= ledgerBoard.total_payers}
+                          onClick={() => setCurrentPage(prev => prev + 1)}
+                          className="px-3 py-1 bg-white border border-zinc-200 rounded text-[11px] font-medium disabled:opacity-50"
+                        >
+                          Next
+                        </button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  )}
+                </Card>
+              )}
+            </div>
+
+            {/* Sidebar Calendar View */}
+            <div className="col-span-12 lg:col-span-4 space-y-4">
+               <Card className="px-5 py-5 overflow-hidden relative">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#a3e635]/10 rounded-full blur-3xl pointer-events-none -mr-16 -mt-16" />
+                 <h4 className="text-[14px] font-bold text-zinc-900 flex items-center justify-between mb-5">
+                   Upcoming Invoices
+                   <span className="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full text-[10px]">
+                     Next 30 Days
+                   </span>
+                 </h4>
+
+                 {!upcomingPayments ? (
+                   <div className="animate-pulse flex flex-col gap-3">
+                     {[1,2,3].map(i => <div key={i} className="h-14 bg-zinc-100 rounded-xl w-full" />)}
+                   </div>
+                 ) : upcomingPayments?.entries?.length === 0 ? (
+                   <div className="text-center py-8">
+                     <p className="text-[12px] text-zinc-400">No upcoming payments scheduled.</p>
+                   </div>
+                 ) : (
+                   <div className="space-y-4 relative">
+                     <div className="absolute left-[15px] top-4 bottom-4 w-px bg-zinc-100 -z-10" />
+                     {upcomingPayments.entries.map((entry, idx) => {
+                       const d = new Date(entry.due_date);
+                       const dateLabel = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                       
+                       return (
+                         <div key={idx} className="flex gap-4">
+                           <div className="w-8 h-8 rounded-full bg-white border-2 border-zinc-100 shadow-sm flex items-center justify-center shrink-0 mt-0.5">
+                             <div className="w-2.5 h-2.5 rounded-full bg-[#a3e635]" />
+                           </div>
+                           <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3">
+                             <div className={`flex items-center justify-between ${entry.obligations?.length > 0 ? "mb-2 pb-2 border-b border-zinc-200" : "mb-1.5"}`}>
+                               <p className="text-[12px] font-bold text-zinc-900">{dateLabel}</p>
+                               <p className="text-[12px] font-bold text-zinc-900">{formatCurrency(entry.total_due)}</p>
+                             </div>
+                             
+                             {entry.obligations?.length > 0 ? (
+                               <div className="space-y-2 mt-2">
+                                 {entry.obligations.slice(0, 3).map((ob, obIdx) => (
+                                   <div key={obIdx} className="flex justify-between items-center text-[11px]">
+                                     <div className="min-w-0 flex-1 truncate pr-2 flex items-baseline gap-1.5">
+                                       <span className="font-semibold text-zinc-800 truncate">{ob.payer?.name || "Unknown"}</span>
+                                       <span className="text-zinc-400 truncate text-[10px]">- {ob.description}</span>
+                                     </div>
+                                     <span className="font-bold text-zinc-700 tabular-nums shrink-0">
+                                       {formatCurrency(ob.amount_due)}
+                                     </span>
+                                   </div>
+                                 ))}
+                                 {entry.obligations.length > 3 && (
+                                   <p className="text-[10px] text-zinc-400 font-medium italic mt-1 pb-0.5">
+                                     + {entry.obligations.length - 3} more payments
+                                   </p>
+                                 )}
+                               </div>
+                             ) : (
+                               <p className="text-[10px] font-medium text-zinc-500">
+                                 {entry.total_count} invoices due ({entry.unpaid_count} unpaid)
+                               </p>
+                             )}
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 )}
+               </Card>
+            </div>
           </div>
-        </Card>
+        </>
       )}
+
     </div>
   );
 }
