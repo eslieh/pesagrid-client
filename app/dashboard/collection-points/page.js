@@ -14,6 +14,7 @@ import {
   createTemplate,
   updateTemplate,
 } from "../../../lib/Notifications";
+import Link from "next/link";
 import CollectionPointWizard from "./CollectionPointWizard";
 import CollectionPointSettings from "./CollectionPointSettings";
 
@@ -636,7 +637,7 @@ export default function CollectionPointsPage() {
                         ? `KES ${Number(cpTotals[cp.id]).toLocaleString()}`
                         : "..."}
                     </span>
-                    <a
+                    <Link
                       href={`/dashboard/collection-points/${cp.id}/dashboard`}
                       className="ml-2 flex items-center gap-1.5 rounded-lg bg-zinc-900 px-2.5 py-1 text-[10px] font-bold text-white transition-all hover:bg-zinc-800 active:scale-95"
                     >
@@ -644,7 +645,7 @@ export default function CollectionPointsPage() {
                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                       </svg>
-                    </a>
+                    </Link>
                   </div>
                 </div>
                 <div className={`h-2 w-2 rounded-full ${cp.is_active ? "bg-[#a3e635]" : "bg-red-400"}`} />
