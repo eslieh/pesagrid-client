@@ -7,7 +7,9 @@ import {
   getTemplates, 
   createTemplate, 
   updateTemplate, 
-  deleteTemplate 
+  deleteTemplate,
+  getTemplateLibrary,
+  createTemplatesBulk
 } from "../../../lib/Notifications";
 
 const supportedVariables = [
@@ -31,6 +33,7 @@ export default function NotificationTemplatesPage() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [error, setError] = useState(null);
 
@@ -72,12 +75,20 @@ export default function NotificationTemplatesPage() {
           <h1 className="text-[20px] font-bold tracking-tight text-zinc-900">Notification Templates</h1>
           <p className="text-[12px] text-zinc-400 mt-1">Manage automated messages for payments and reminders.</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="rounded-xl bg-zinc-900 px-4 py-2 text-[12px] font-bold text-white transition-all hover:bg-zinc-800 active:scale-95"
-        >
-          Create Template
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsLibraryOpen(true)}
+            className="rounded-xl border border-zinc-100 bg-white px-4 py-2 text-[12px] font-bold text-zinc-900 transition-all hover:bg-zinc-50 active:scale-95"
+          >
+            Import from Library
+          </button>
+          <button
+            onClick={() => handleOpenModal()}
+            className="rounded-xl bg-zinc-900 px-4 py-2 text-[12px] font-bold text-white transition-all hover:bg-zinc-800 active:scale-95"
+          >
+            Create Template
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -142,7 +153,6 @@ export default function NotificationTemplatesPage() {
           )}
         </div>
       )}
-
       <AnimatePresence>
         {isModalOpen && (
           <TemplateModal 
@@ -150,6 +160,15 @@ export default function NotificationTemplatesPage() {
             onClose={() => setIsModalOpen(false)} 
             onSuccess={() => {
               setIsModalOpen(false);
+              fetchTemplates();
+            }}
+          />
+        )}
+        {isLibraryOpen && (
+          <TemplateLibraryModal 
+            onClose={() => setIsLibraryOpen(false)} 
+            onSuccess={() => {
+              setIsLibraryOpen(false);
               fetchTemplates();
             }}
           />
@@ -251,6 +270,9 @@ function TemplateModal({ template, onClose, onSuccess }) {
                   <option value="payment_receipt_full">Payment Receipt (Full)</option>
                   <option value="obligation_created">Obligation Created</option>
                   <option value="obligation_cancelled">Obligation Cancelled</option>
+                  <option value="collection_receipt">Collection Point Receipt</option>
+                  <option value="statement">Account Statement</option>
+                  <option value="custom">Custom Notification</option>
                 </select>
               </div>
             </div>
@@ -350,6 +372,168 @@ function TemplateModal({ template, onClose, onSuccess }) {
               </button>
             </div>
           </form>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function TemplateLibraryModal({ onClose, onSuccess }) {
+  const [library, setLibrary] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchLibrary();
+  }, []);
+
+  const fetchLibrary = async () => {
+    try {
+      setLoading(true);
+      const data = await getTemplateLibrary();
+      setLibrary(data.items || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSelection = (name) => {
+    setSelectedIds(prev => 
+      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
+    );
+  };
+
+  const handleImport = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      setImporting(true);
+      const toImport = library
+        .filter(tpl => selectedIds.includes(tpl.name))
+        .map(({ category, description, ...rest }) => ({
+          ...rest,
+          is_default: false
+        }));
+      
+      await createTemplatesBulk(toImport);
+      onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Group by category
+  const grouped = library.reduce((acc, tpl) => {
+    const cat = tpl.category || "General";
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(tpl);
+    return acc;
+  }, {});
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <div className="p-8 pb-4 flex items-center justify-between border-b border-zinc-50">
+          <div>
+            <h2 className="text-[18px] font-bold text-zinc-900 leading-tight">Template Library</h2>
+            <p className="text-[12px] text-zinc-400 mt-0.5">Choose professional templates to setup your business notifications.</p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-zinc-50 transition-colors">
+            <svg className="h-5 w-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8 pt-6">
+          {loading ? (
+            <div className="flex h-40 items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-200 border-t-[#a3e635]" />
+            </div>
+          ) : error ? (
+            <div className="rounded-xl bg-red-50 p-4 border border-red-100">
+              <p className="text-[12px] text-red-600 font-medium">{error}</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {Object.entries(grouped).map(([category, items]) => (
+                <div key={category} className="space-y-4">
+                  <h3 className="text-[11px] font-black text-zinc-300 uppercase tracking-[0.2em]">{category}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {items.map((tpl) => (
+                      <div 
+                        key={tpl.name}
+                        onClick={() => toggleSelection(tpl.name)}
+                        className={`group cursor-pointer rounded-2xl border p-4 transition-all duration-300 ${
+                          selectedIds.includes(tpl.name) 
+                            ? 'border-[#a3e635] bg-[#a3e635]/5 ring-1 ring-[#a3e635]' 
+                            : 'border-zinc-100 bg-zinc-50/50 hover:border-zinc-200 hover:bg-white hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[8px] font-bold text-zinc-500 uppercase tracking-widest leading-none">
+                              {tpl.channel}
+                            </span>
+                            <span className="rounded-full bg-zinc-900/5 px-2 py-0.5 text-[8px] font-bold text-zinc-400 uppercase tracking-widest leading-none">
+                              {tpl.template_type.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            selectedIds.includes(tpl.name) ? 'bg-[#a3e635] border-[#a3e635]' : 'border-zinc-200'
+                          }`}>
+                            {selectedIds.includes(tpl.name) && (
+                              <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        <h4 className="text-[13px] font-bold text-zinc-900 group-hover:text-zinc-600 transition-colors">
+                          {tpl.name}
+                        </h4>
+                        <p className="mt-1 text-[11px] text-zinc-400 leading-relaxed italic">
+                          "{tpl.description || tpl.body.substring(0, 60) + "..."}"
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-8 pt-4 border-t border-zinc-50 flex items-center justify-between bg-zinc-50/50">
+          <p className="text-[11px] text-zinc-400">
+            {selectedIds.length} templates selected for import
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-zinc-100 bg-white px-6 py-2.5 text-[12px] font-bold text-zinc-400 transition-all hover:bg-zinc-50 active:scale-95"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleImport}
+              disabled={importing || selectedIds.length === 0}
+              className="rounded-xl bg-zinc-900 px-8 py-2.5 text-[12px] font-bold text-white transition-all hover:bg-zinc-800 active:scale-95 disabled:opacity-50"
+            >
+              {importing ? "Importing..." : "Setup Selected Templates"}
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

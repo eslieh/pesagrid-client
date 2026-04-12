@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card } from "../../pesagrid/components/dashboard/UI";
-import { getBusinessProfile, createBusinessProfile } from "../../../lib/Account";
+import { getBusinessProfile, createBusinessProfile, updateBusinessProfile } from "../../../lib/Account";
 import { getCurrentUser } from "../../../lib/Auth";
 
 /* ── reusable field ─────────────────────────────────── */
@@ -67,12 +67,19 @@ export default function AccountPage() {
     setMessage({ type: "", text: "" });
     try {
       const user = await getCurrentUser();
-      await createBusinessProfile({
+      const profileData = {
         ...profile,
         id: profile.id || crypto.randomUUID(),
         collection_id: user.id || user.uid,
         created_at: profile.created_at || new Date().toISOString(),
-      });
+      };
+
+      if (profile.id) {
+        await updateBusinessProfile(profileData);
+      } else {
+        await createBusinessProfile(profileData);
+      }
+      
       setMessage({ type: "success", text: "Profile updated successfully." });
     } catch (err) {
       setMessage({ type: "error", text: err.message || "Failed to update profile." });

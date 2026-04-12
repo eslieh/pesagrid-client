@@ -22,6 +22,11 @@ function Field({ label, children, required }) {
 const inputCls =
   "w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-[13px] font-medium text-zinc-900 outline-none transition-all placeholder:text-zinc-300 focus:border-zinc-400 focus:bg-white focus:ring-2 focus:ring-zinc-900/5";
 
+const PSP_LOGOS = {
+  mpesa: "/psp/mpesa.png",
+  kcb: "/psp/kcb.png",
+};
+
 export default function PaymentChannelsPage() {
   const [channels, setChannels] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +58,9 @@ export default function PaymentChannelsPage() {
     psp_type: "mpesa",
     display_name: "",
     paybill: "",
+    till_number: "",
+    business_key: "",
+    account_no: "",
     is_active: true,
     credentials_consumer_key: "",
     credentials_consumer_secret: "",
@@ -95,6 +103,9 @@ export default function PaymentChannelsPage() {
       psp_type: "mpesa",
       display_name: "",
       paybill: "",
+      till_number: "",
+      business_key: "",
+      account_no: "",
       is_active: true,
       credentials_consumer_key: "",
       credentials_consumer_secret: "",
@@ -110,6 +121,9 @@ export default function PaymentChannelsPage() {
       psp_type: channel.psp_type || "mpesa",
       display_name: channel.display_name || "",
       paybill: channel.paybill || "",
+      till_number: channel.till_number || "",
+      business_key: channel.business_key || "",
+      account_no: channel.account_no || "",
       is_active: channel.is_active !== false, // default true
       credentials_consumer_key: "",
       credentials_consumer_secret: "",
@@ -146,18 +160,22 @@ export default function PaymentChannelsPage() {
       let payload = {
         psp_type: formData.psp_type,
         display_name: formData.display_name,
-        paybill: formData.paybill,
-        meta: {},
         is_active: formData.is_active,
+        meta: {},
       };
 
-      if (formData.credentials_consumer_key || formData.credentials_consumer_secret || formData.credentials_passkey) {
-        payload.credentials = {};
-        if (formData.credentials_consumer_key) payload.credentials.consumer_key = formData.credentials_consumer_key;
-        if (formData.credentials_consumer_secret) payload.credentials.consumer_secret = formData.credentials_consumer_secret;
-        if (formData.credentials_passkey) payload.credentials.passkey = formData.credentials_passkey;
-      } else if (!editingChannel) {
-        payload.credentials = {};
+      if (formData.psp_type === 'mpesa') {
+        payload.paybill = formData.paybill;
+      } else if (formData.psp_type === 'kcb') {
+        if (!formData.till_number && !formData.business_key) {
+          throw new Error("KCB requires either a Till Number or a Business Key.");
+        }
+        payload.till_number = formData.till_number;
+        payload.business_key = formData.business_key;
+        payload.account_no = formData.account_no;
+      } else {
+        // Fallback for other types if any
+        payload.paybill = formData.paybill;
       }
 
       await requestMfaCode();
@@ -344,18 +362,34 @@ export default function PaymentChannelsPage() {
               <form onSubmit={handleSubmit}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
                   <Field label="Provider Type" required>
-                    <select
-                      name="psp_type"
-                      value={formData.psp_type}
-                      onChange={handleChange}
-                      className={inputCls}
-                      disabled={!!editingChannel} // Disable changing type when editing
-                      required
-                    >
-                      <option value="mpesa">M-PESA</option>
-                      <option value="kcb">KCB</option>
-                      <option value="equity">Equity Bank</option>
-                    </select>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'mpesa', name: 'M-PESA' },
+                        { id: 'kcb', name: 'KCB' },
+                        { id: 'equity', name: 'Equity' }
+                      ].map((type) => (
+                        <button
+                          key={type.id}
+                          type="button"
+                          disabled={!!editingChannel}
+                          onClick={() => setFormData({ ...formData, psp_type: type.id })}
+                          className={`flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
+                            formData.psp_type === type.id
+                              ? "border-zinc-900 bg-zinc-900 text-white shadow-md scale-[1.02]"
+                              : "border-zinc-100 bg-zinc-50 text-zinc-400 hover:border-zinc-200 hover:bg-white"
+                          } ${editingChannel && formData.psp_type !== type.id ? "opacity-40 grayscale" : ""}`}
+                        >
+                          <div className={`h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center p-1 ${formData.psp_type === type.id ? "bg-white" : "bg-white/50"}`}>
+                            {PSP_LOGOS[type.id] ? (
+                              <img src={PSP_LOGOS[type.id]} alt={type.name} className="h-full w-full object-contain" />
+                            ) : (
+                              <div className="text-[10px] font-bold text-zinc-400 uppercase">{type.name.substring(0,2)}</div>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{type.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   </Field>
 
                   <Field label="Display Name" required>
@@ -365,22 +399,69 @@ export default function PaymentChannelsPage() {
                       value={formData.display_name}
                       onChange={handleChange}
                       className={inputCls}
-                      placeholder="e.g. Primary M-PESA Paybill"
+                      placeholder={formData.psp_type === 'kcb' ? "e.g. KCB Collection" : "e.g. Primary M-PESA Paybill"}
                       required
                     />
                   </Field>
 
-                  <Field label="Paybill / Till Number" required>
-                    <input
-                      name="paybill"
-                      type="text"
-                      value={formData.paybill}
-                      onChange={handleChange}
-                      className={inputCls}
-                      placeholder="e.g. 174379"
-                      required
-                    />
-                  </Field>
+                  {formData.psp_type === 'mpesa' ? (
+                    <Field label="Paybill / Till Number" required>
+                      <input
+                        name="paybill"
+                        type="text"
+                        value={formData.paybill}
+                        onChange={handleChange}
+                        className={inputCls}
+                        placeholder="e.g. 174379"
+                        required
+                      />
+                    </Field>
+                  ) : formData.psp_type === 'kcb' ? (
+                    <>
+                      <Field label="KCB Till Number">
+                        <input
+                          name="till_number"
+                          type="text"
+                          value={formData.till_number}
+                          onChange={handleChange}
+                          className={inputCls}
+                          placeholder="e.g. 123456"
+                        />
+                      </Field>
+                      <Field label="Business Key / Biller Code">
+                        <input
+                          name="business_key"
+                          type="text"
+                          value={formData.business_key}
+                          onChange={handleChange}
+                          className={inputCls}
+                          placeholder="e.g. KCB-CORP-001"
+                        />
+                      </Field>
+                      <Field label="Internal Account Number">
+                        <input
+                          name="account_no"
+                          type="text"
+                          value={formData.account_no}
+                          onChange={handleChange}
+                          className={inputCls}
+                          placeholder="e.g. 1109876543"
+                        />
+                      </Field>
+                    </>
+                  ) : (
+                    <Field label="Identifier / Shortcode" required>
+                      <input
+                        name="paybill"
+                        type="text"
+                        value={formData.paybill}
+                        onChange={handleChange}
+                        className={inputCls}
+                        placeholder="e.g. 123456"
+                        required
+                      />
+                    </Field>
+                  )}
 
                   {editingChannel && (
                     <div className="flex items-center gap-3 pt-6">
@@ -398,46 +479,7 @@ export default function PaymentChannelsPage() {
                     </div>
                   )}
 
-                  <div className="col-span-1 md:col-span-2 mt-2">
-                    <h3 className="text-[12px] font-medium text-zinc-900 border-b border-zinc-100 pb-2 mb-4">
-                      API Credentials {editingChannel && <span className="text-zinc-400 font-normal ml-2">(Leave blank to keep current credentials)</span>}
-                    </h3>
-                  </div>
 
-                  {formData.psp_type === "mpesa" && (
-                    <>
-                      <Field label="Consumer Key">
-                        <input
-                          name="credentials_consumer_key"
-                          type="password"
-                          value={formData.credentials_consumer_key}
-                          onChange={handleChange}
-                          className={inputCls}
-                          placeholder={editingChannel ? "••••••••" : "Daraja Consumer Key"}
-                        />
-                      </Field>
-                      <Field label="Consumer Secret">
-                        <input
-                          name="credentials_consumer_secret"
-                          type="password"
-                          value={formData.credentials_consumer_secret}
-                          onChange={handleChange}
-                          className={inputCls}
-                          placeholder={editingChannel ? "••••••••" : "Daraja Consumer Secret"}
-                        />
-                      </Field>
-                      <Field label="Passkey">
-                        <input
-                          name="credentials_passkey"
-                          type="password"
-                          value={formData.credentials_passkey}
-                          onChange={handleChange}
-                          className={inputCls}
-                          placeholder={editingChannel ? "••••••••" : "Lipa na M-PESA Passkey"}
-                        />
-                      </Field>
-                    </>
-                  )}
                 </div>
 
                 <div className="mt-8 pt-5 border-t border-zinc-100 flex items-center justify-end gap-3">
@@ -504,17 +546,27 @@ export default function PaymentChannelsPage() {
             <Card key={channel.id} className="py-5 px-5 flex flex-col h-full hover:border-zinc-300 transition-colors">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#a3e635]/10 text-[#6bb800]">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white border border-zinc-100 shadow-sm overflow-hidden p-1.5 transform transition-transform group-hover:scale-105">
+                    {PSP_LOGOS[channel.psp_type] ? (
+                      <img src={PSP_LOGOS[channel.psp_type]} alt={channel.psp_type} className="h-full w-full object-contain" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-zinc-50 text-zinc-400">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                   <div>
-                    <h3 className="text-[14px] font-semibold text-zinc-900 leading-tight">
+                    <h3 className="text-[14px] font-bold text-zinc-900 leading-tight">
                       {channel.display_name}
                     </h3>
-                    <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-widest mt-0.5">
-                      {channel.psp_type} • {channel.paybill}
+                    <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">
+                      {channel.psp_type} • {channel.psp_type === 'kcb' ? (
+                        [channel.till_number && `Till: ${channel.till_number}`, channel.business_key && `Key: ${channel.business_key}`].filter(Boolean).join(' • ')
+                      ) : (
+                        channel.paybill
+                      )}
                     </p>
                   </div>
                 </div>
@@ -577,7 +629,9 @@ export default function PaymentChannelsPage() {
                     </button>
                   </div>
                   <p className="text-[10px] text-zinc-400 mt-2">
-                    Register this webhook with your provider to receive instant callbacks.
+                    {channel.psp_type === 'kcb' 
+                      ? "PesaGrid will automatically use the correct endpoints for Till and Account notifications."
+                      : "Register this webhook with your provider to receive instant callbacks."}
                   </p>
                 </div>
               )}
