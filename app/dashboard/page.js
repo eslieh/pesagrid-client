@@ -9,6 +9,7 @@ import {
   getPeakTimes, 
   getRecentPayments
 } from "../../lib/Dashboard";
+import Link from "next/link";
 import { 
   getNotificationSettings,
   updateNotificationSettings
@@ -24,7 +25,7 @@ const barColor = {
 };
 
 const PERIODS = [
-  { label: "1D", interval: "hour",  days: 1   },
+  { label: "1D", interval: "hour",  days: 0   }, // Restored 'hour' now that API support is added
   { label: "7D", interval: "day",   days: 7   },
   { label: "1M", interval: "day",   days: 30  },
   { label: "3M", interval: "week",  days: 90  },
@@ -34,13 +35,19 @@ const PERIODS = [
 function getDateRange(days) {
   const end = new Date();
   const start = new Date();
-  start.setDate(end.getDate() - days);
+  if (days > 0) {
+    start.setDate(end.getDate() - days);
+  }
+  
   const fmt = (d) => d.toISOString().split("T")[0] + "T00:00:00";
-  return { startISO: fmt(start), endISO: fmt(end) };
+  // For 'today', we want to see up to now. For historical ranges, up to the end of the day.
+  const endISO = days === 0 ? new Date(new Date().getTime() + (3*60*60*1000)).toISOString() : new Date().toISOString(); 
+  
+  return { startISO: fmt(start), endISO };
 }
 
 export default function DashboardPage() {
-  const [activePeriod, setActivePeriod] = useState(PERIODS[1]); // default 7D
+  const [activePeriod, setActivePeriod] = useState(PERIODS[0]); // default to Today
   const [metrics, setMetrics] = useState({
     total_collected: 0,
     total_matched: 0,
@@ -63,11 +70,12 @@ export default function DashboardPage() {
     async function fetchData() {
       try {
         setLoading(true);
+        const { startISO, endISO } = getDateRange(PERIODS[0].days);
         const [m, t, p, r, ns] = await Promise.all([
-          getDashboardMetrics(),
-          getCollectionTrends(activePeriod.interval),
-          getPeakTimes(),
-          getRecentPayments(null, 0, 7),
+          getDashboardMetrics(null, startISO, endISO),
+          getCollectionTrends(PERIODS[0].interval, null, startISO, endISO),
+          getPeakTimes(null, startISO, endISO),
+          getRecentPayments(null, 0, 7, startISO, endISO),
           getNotificationSettings().catch(() => ({ 
             payment_notifications_enabled: false, 
             payment_notification_channels: ["email"] 
@@ -331,17 +339,19 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div className="flex flex-col gap-3">
                 <div className="flex h-12 w-full gap-1 items-end">
-                  {Array.from({ length: 24 }).map((_, hour) => {
-                    const peak = peakTimes.find(p => p.hour === hour) || { total: 0 };
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    // Shift the lookup: slot i (Local EAT) corresponds to (i - 3) UTC
+                    const utcHour = (i - 3 + 24) % 24;
+                    const peak = peakTimes.find(p => p.hour === utcHour) || { total: 0 };
                     const maxPeakVal = Math.max(...peakTimes.map(p => p.total), 1);
                     const intensity = peak.total > 0 ? Math.max(0.1, peak.total / maxPeakVal) : 0;
                     
                     return (
-                      <div key={hour} className="group relative flex-1 h-full flex items-end">
+                      <div key={i} className="group relative flex-1 h-full flex items-end">
                         <motion.div 
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "100%", opacity: 1 }}
-                          transition={{ delay: hour * 0.02 }}
+                          transition={{ delay: i * 0.02 }}
                           style={{ 
                             // Darker colors for higher intensity: scaling lightness from 54% (brand lime) down to ~20%
                             backgroundColor: intensity > 0 
@@ -352,10 +362,10 @@ export default function DashboardPage() {
                           className="w-full transition-all duration-300 group-hover:ring-2 group-hover:ring-[#a3e635] group-hover:ring-offset-1"
                         />
                         
-                        {/* Tooltip */}
+                        {/* Tooltip (Local EAT) */}
                         <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-zinc-900 text-white text-[10px] py-1.5 px-2.5 rounded-xl whitespace-nowrap z-30 pointer-events-none shadow-xl flex flex-col items-center">
                           <span className="text-zinc-400 text-[8px] font-bold uppercase tracking-wider">
-                            {hour.toString().padStart(2, "0")}:00 - {(hour + 1).toString().padStart(2, "0")}:00
+                            {i.toString().padStart(2, "0")}:00 - {(i + 1).toString().padStart(2, "0")}:00
                           </span>
                           <span className="font-bold">{formatCurrency(peak.total)}</span>
                           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-900 rotate-45" />
@@ -365,13 +375,13 @@ export default function DashboardPage() {
                   })}
                 </div>
 
-                {/* Hour Labels */}
+                {/* Hour Labels (Local EAT) */}
                 <div className="flex justify-between px-1 text-[9px] font-black text-zinc-300 uppercase tracking-widest">
                   <span>00:00</span>
                   <span>06:00</span>
                   <span>12:00</span>
                   <span>18:00</span>
-                  <span>23:59</span>
+                  <span>24:00</span>
                 </div>
               </div>
 
@@ -391,7 +401,7 @@ export default function DashboardPage() {
                 Fleet Performance Tip
               </h4>
               <p className="mt-1 text-[10px] text-zinc-400 leading-relaxed">
-                Your peak collection period is usually between 7 AM and 9 AM. Ensure all collection points are active.
+                Your peak collection period is usually between 10 AM and 12 PM. Ensure all collection points are active.
               </p>
             </Card>
 
@@ -580,12 +590,12 @@ export default function DashboardPage() {
         <Card className="py-5 px-5">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-[13px] font-semibold text-zinc-900">Recent Payments</h4>
-            <button className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500">
+            <Link href="/dashboard/transactions" className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500">
               Recent
               <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-            </button>
+            </Link>
           </div>
 
           <div className="flex justify-between text-[10px] font-medium text-zinc-300 mb-3 px-0.5">
