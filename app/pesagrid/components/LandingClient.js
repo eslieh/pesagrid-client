@@ -101,6 +101,7 @@ const navLinks = [
   { href: "/pricing", label: "Pricing" },
   { href: "#use-cases", label: "Use cases" },
   { href: "#psps", label: "Supported PSPs" },
+  { href: "#contact", label: "Contact" },
 ];
 
 export default function LandingClient() {
@@ -820,18 +821,38 @@ export default function LandingClient() {
           </Reveal>
         </section>
 
-        <footer className="pb-10 pt-6 text-sm text-zinc-500">
-          <div className="flex flex-col gap-3 border-t border-zinc-200/70 pt-6 md:flex-row md:items-center md:justify-between">
-            <div>© {year} Pesagrid. All rights reserved.</div>
-            <div className="flex items-center gap-4">
-              {navLinks.slice(0, 4).map((l) => (
-                <a key={l.href} className="hover:text-zinc-700" href={l.href}>
-                  {l.label}
-                </a>
-              ))}
-              <Link className="hover:text-zinc-700" href="/pricing">
-                Pricing Page
-              </Link>
+        <footer id="contact" className="pb-10 pt-6 text-sm text-zinc-500">
+          <div className="flex flex-col gap-6 border-t border-zinc-200/70 pt-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap gap-x-8 gap-y-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Phone</span>
+                  <a href="tel:+254795739291" className="font-semibold text-zinc-900 hover:text-lime-600 transition-colors">
+                    +254 795 739291
+                  </a>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Email</span>
+                  <a href="mailto:pesagrid@ryfty.net" className="font-semibold text-zinc-900 hover:text-lime-600 transition-colors">
+                    pesagrid@ryfty.net
+                  </a>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {navLinks.map((l) => (
+                  <a key={l.href} className="hover:text-zinc-700" href={l.href}>
+                    {l.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 border-t border-zinc-100 pt-6 md:flex-row md:items-center md:justify-between">
+              <div>© {year} Pesagrid. All rights reserved.</div>
+              <div className="flex items-center gap-4">
+                <Link className="hover:text-zinc-700" href="/pricing">
+                  Pricing Page
+                </Link>
+              </div>
             </div>
           </div>
         </footer>
