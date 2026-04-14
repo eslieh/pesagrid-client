@@ -58,12 +58,85 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+  const baseUrl = "https://pesagrid.co.ke";
+  
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "PesaGrid",
+    "url": baseUrl,
+    "logo": `${baseUrl}/logo.png`,
+    "sameAs": [
+      "https://twitter.com/pesagrid",
+      "https://linkedin.com/company/pesagrid"
+    ]
+  };
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "PesaGrid",
+    "url": baseUrl,
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": `${baseUrl}/search?q={search_term_string}`,
+      "query-input": "required name=search_term_string"
+    }
+  };
+
+  const sitenavSchema = {
+    "@context": "https://schema.org",
+    "@type": "SiteNavigationElement",
+    "hasPart": [
+      {
+        "@type": "WebPage",
+        "name": "Home",
+        "url": baseUrl
+      },
+      {
+        "@type": "WebPage",
+        "name": "Pricing",
+        "url": `${baseUrl}/pricing`
+      },
+      {
+        "@type": "WebPage",
+        "name": "FAQ",
+        "url": `${baseUrl}/faq`
+      },
+      {
+        "@type": "WebPage",
+        "name": "Sign In",
+        "url": `${baseUrl}/auth/login`
+      },
+      {
+        "@type": "WebPage",
+        "name": "Get Started",
+        "url": `${baseUrl}/auth/register`
+      }
+    ]
+  };
+
   return (
     <html
       lang="en"
       className={`${figtree.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
+        <Script
+          id="organization-schema"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <Script
+          id="website-schema"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
+        <Script
+          id="sitenav-schema"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(sitenavSchema) }}
+        />
         <Script
           async
           src="https://www.googletagmanager.com/gtag/js?id=G-79CFCLSTJS"
