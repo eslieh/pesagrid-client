@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import Sidebar from "../pesagrid/components/dashboard/Sidebar";
 import Header from "../pesagrid/components/dashboard/Header";
+import BottomNav from "../pesagrid/components/dashboard/BottomNav";
 import { getCurrentUser, logout as logoutApi } from "../../lib/Auth";
 import { getBusinessProfile, createBusinessProfile } from "../../lib/Account";
 import { getSubscription } from "../../lib/Billing";
@@ -15,7 +16,13 @@ export default function DashboardLayout({ children }) {
   const [user, setUser] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const pathname = usePathname();
+
+  // Close sidebar when path changes on mobile
+  useEffect(() => {
+    setShowSidebar(false);
+  }, [pathname]);
 
   useEffect(() => {
     const init = async () => {
@@ -93,23 +100,27 @@ export default function DashboardLayout({ children }) {
           </Link>
         </div>
       )}
-      <div className="flex flex-1 relative w-full">
+      <div className="flex flex-1 relative w-full overflow-hidden">
         <Sidebar 
           currentPath={pathname}
           profile={profile} 
           subscription={subscription}
           onLogout={handleLogout} 
+          isOpen={showSidebar}
+          onClose={() => setShowSidebar(false)}
         />
 
-        <main className="flex-1 ml-60 bg-[#f5f6f7] flex flex-col min-h-full">
+        <main className="flex-1 lg:ml-60 bg-[#f5f6f7] flex flex-col min-h-screen max-w-full overflow-x-hidden pb-20 lg:pb-0">
           <Header 
             user={user} 
             profile={profile}
             onAddWidget={() => {}} 
+            onMenuClick={() => setShowSidebar(true)}
           />
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-y-auto">
             {children}
           </div>
+          <BottomNav />
         </main>
       </div>
     </div>

@@ -895,9 +895,59 @@ export default function InvoicesPage() {
                   </p>
                 </Card>
               ) : (
-                <Card className="overflow-hidden noPadding">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[12px] whitespace-nowrap">
+                <div className="space-y-4 lg:space-y-0">
+                  {/* Card View (Mobile) */}
+                  <div className="grid grid-cols-1 gap-4 lg:hidden">
+                    {ledgerBoard.items.map((payer) => (
+                      <Card key={payer.payer_id} className="p-4 flex flex-col gap-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-bold text-zinc-900 truncate">{payer.payer_name || "Unknown"}</p>
+                            <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{payer.payer_account_no || payer.payer_phone || "No Account Info"}</p>
+                          </div>
+                          <div className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider shrink-0 ${getStatusColor(payer.payer_status)}`}>
+                            {payer.payer_status}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 py-3 border-y border-zinc-50">
+                          <div>
+                            <p className="text-[9px] font-black text-zinc-300 uppercase tracking-widest mb-1">Paid</p>
+                            <p className="text-[12px] font-bold text-zinc-600">{formatCurrency(payer.total_paid)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black text-zinc-300 uppercase tracking-widest mb-1">Balance</p>
+                            <p className="text-[13px] font-black text-zinc-900">{formatCurrency(payer.total_balance)}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-700">
+                            <span>{payer.total_obligations} Invoices</span>
+                            {payer.overdue_count > 0 && (
+                              <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+                                {payer.overdue_count} Overdue
+                              </span>
+                            )}
+                          </div>
+                          <Link 
+                            href={`/dashboard/payers/${payer.payer_id}/ledger`}
+                            className="text-[10px] font-black text-zinc-900 uppercase tracking-tight flex items-center gap-1"
+                          >
+                            Ledger
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </Link>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Table View (Desktop) */}
+                  <Card className="hidden lg:block overflow-hidden noPadding">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[12px] whitespace-nowrap">
                       <thead>
                         <tr className="border-b border-zinc-100 bg-zinc-50 text-zinc-400 uppercase tracking-wider text-[10px] font-semibold">
                           <th className="px-5 py-4">Payer</th>
@@ -979,6 +1029,7 @@ export default function InvoicesPage() {
                     </div>
                   )}
                 </Card>
+              </div>
               )}
             </div>
 
