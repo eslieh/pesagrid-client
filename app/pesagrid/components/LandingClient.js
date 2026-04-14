@@ -99,6 +99,7 @@ function ElasticBubbleSlider({ size = "md", className = "" }) {
 const navLinks = [
   { href: "#how-it-works", label: "How it works" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/faq", label: "FAQ" },
   { href: "#use-cases", label: "Use cases" },
   { href: "#psps", label: "Supported PSPs" },
   { href: "#contact", label: "Contact" },
