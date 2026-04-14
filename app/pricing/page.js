@@ -81,8 +81,33 @@ function PricingCard({ tier, price, sms, features, isFeatured = false, walletMin
 }
 
 export default function PricingPage() {
+  const baseUrl = "https://pesagrid.co.ke";
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": baseUrl
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Pricing",
+        "item": `${baseUrl}/pricing`
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 selection:bg-lime-200">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute -top-28 left-1/2 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-lime-300/25 blur-3xl" />
         <div className="absolute -left-24 top-48 h-[22rem] w-[22rem] rounded-full bg-emerald-200/30 blur-3xl" />
