@@ -23,21 +23,21 @@ export function Card({ className = "", children, noPadding = false }) {
 export function StatWidget({ label, value, trend, trendUp = true }) {
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-[11px] font-medium text-zinc-400 uppercase tracking-widest">
+      <p className="text-[10px] lg:text-[11px] font-medium text-zinc-400 uppercase tracking-widest">
         {label}
       </p>
-      <h3 className="text-[28px] font-bold tracking-tight text-zinc-900 leading-none">
+      <h3 className="text-[24px] lg:text-[28px] font-bold tracking-tight text-zinc-900 leading-none">
         {value}
       </h3>
       {trend && (
         <p
-          className={`flex items-center gap-1 text-[11px] font-medium ${
+          className={`flex items-center gap-1 text-[10px] lg:text-[11px] font-medium ${
             trendUp ? "text-[#6bb800]" : "text-red-500"
           }`}
         >
           <span>{trendUp ? "↑" : "↓"}</span>
           {trend}
-          <span className="text-zinc-400 font-normal">from last month</span>
+          <span className="text-zinc-400 font-normal ml-1">last month</span>
         </p>
       )}
     </div>

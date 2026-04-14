@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { globalSearch } from "../../../../lib/Dashboard";
 import Link from "next/link";
 
-export default function Header({ user, profile, onAddWidget }) {
+export default function Header({ user, profile, onAddWidget, onMenuClick }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,26 +57,36 @@ export default function Header({ user, profile, onAddWidget }) {
   };
 
   return (
-    <header className="flex h-[68px] items-center justify-between border-b border-zinc-100 bg-white px-8 relative z-[100]">
+    <header className="flex h-[68px] items-center justify-between border-b border-zinc-100 bg-white px-4 lg:px-8 relative z-[40]">
       {/* Left: Identity */}
-      <div className="flex items-center gap-4">
-        <div className="h-10 w-10 rounded-xl bg-zinc-900 flex items-center justify-center text-[15px] font-black text-[#a3e635] shadow-sm">
+      <div className="flex items-center gap-3 lg:gap-4">
+        {/* Mobile Menu Toggle */}
+        <button 
+          onClick={onMenuClick}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-50 lg:hidden"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+        <div className="hidden sm:flex h-10 w-10 rounded-xl bg-zinc-900 items-center justify-center text-[15px] font-black text-[#a3e635] shadow-sm">
           {profile?.business_name?.charAt(0) || "P"}
         </div>
-        <div className="flex flex-col">
-          <h2 className="text-[14px] font-bold text-zinc-900 leading-tight">
+        <div className="flex flex-col min-w-0">
+          <h2 className="text-[14px] font-bold text-zinc-900 leading-tight truncate max-w-[120px] sm:max-w-none">
             {profile?.business_name || "My Business"}
           </h2>
-          <p className="text-[11px] font-semibold text-zinc-400 mt-0.5">
+          <p className="text-[11px] font-semibold text-zinc-400 mt-0.5 truncate max-w-[100px] sm:max-w-none">
             {user?.name || profile?.display_name || "Account Owner"}
           </p>
         </div>
       </div>
 
       {/* Right actions */}
-      <div className="flex items-center gap-6">
-        {/* Search Container (Now on Right) */}
-        <div ref={searchRef} className="relative w-72">
+      <div className="flex items-center gap-2 lg:gap-6">
+        {/* Search Container (Hidden on very small screens, or we can make it an icon) */}
+        <div ref={searchRef} className="relative hidden md:block w-48 lg:w-72">
           <div className={`flex items-center gap-2.5 rounded-xl bg-zinc-50 border border-zinc-100 px-3.5 py-2 transition-all ${isOpen ? 'ring-2 ring-zinc-900/5 bg-white border-zinc-300' : ''}`}>
             {isLoading ? (
               <div className="h-3 w-3 border-2 border-zinc-200 border-t-zinc-900 animate-spin rounded-full" />
@@ -132,7 +142,14 @@ export default function Header({ user, profile, onAddWidget }) {
           </AnimatePresence>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Mobile Search Trigger (Icon only) */}
+        <button className="md:hidden flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-50">
+          <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </button>
+
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* Notification */}
           <button className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700 transition-colors">
             <svg className="h-4.5 w-4.5" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">

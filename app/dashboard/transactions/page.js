@@ -9,6 +9,7 @@ import ManualMatchModal from "./components/ManualMatchModal";
 import { getTransactions } from "../../../lib/Transaction";
 import { getCollectionPoints } from "../../../lib/CollectionPoint";
 import { getPaymentChannels } from "../../../lib/PaymentChannel";
+import { Card } from "../../pesagrid/components/dashboard/UI";
 
 function TransactionsRegistryContent() {
   const searchParams = useSearchParams();
@@ -215,23 +216,24 @@ function TransactionsRegistryContent() {
               key="feed"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="bg-white border border-zinc-200 rounded-[40px] shadow-sm overflow-hidden divide-y divide-zinc-50"
+              className="space-y-3"
             >
               {transactions.map((tx, idx) => (
-                <TransactionItem 
-                  key={tx.id || idx}
-                  tx={tx}
-                  idx={idx}
-                  formatCurrency={formatCurrency}
-                  formatDate={formatDate}
-                  getInitials={getInitials}
-                  onMatch={handleOpenMatch}
-                />
+                <Card key={tx.id || idx} noPadding className="overflow-hidden">
+                  <TransactionItem 
+                    tx={tx}
+                    idx={idx}
+                    formatCurrency={formatCurrency}
+                    formatDate={formatDate}
+                    getInitials={getInitials}
+                    onMatch={handleOpenMatch}
+                  />
+                </Card>
               ))}
 
               {/* Load More Button */}
               {hasMore && (
-                <div className="p-8 flex justify-center bg-zinc-50/30">
+                <div className="pt-8 pb-12 flex justify-center">
                   <button 
                     onClick={() => fetchData(true)}
                     disabled={loadingMore}

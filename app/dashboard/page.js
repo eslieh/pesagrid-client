@@ -432,7 +432,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Column 2: Stats & Goals (Middle) ───────── */}
-      <div className="col-span-12 lg:col-span-3 space-y-5 pt-12">
+      <div className="col-span-12 lg:col-span-3 space-y-5 lg:pt-12">
         {/* KPI stats */}
         <div className="space-y-6">
           <StatWidget label="Total Collected" value={formatCurrency(metrics.total_collected)} trend="Real-time" trendUp />
@@ -473,7 +473,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Column 3: Transactions (Right) ──── */}
-      <div className="col-span-12 lg:col-span-4 space-y-5 pt-12">
+      <div className="col-span-12 lg:col-span-4 space-y-5 lg:pt-12">
         {/* Notification Preferences */}
         <Card className="py-5 px-5">
            <div className="flex items-center justify-between mb-4">
