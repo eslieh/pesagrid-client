@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { getPlans, getSubscription, subscribe } from "../../../../lib/Billing";
 
-export default function PricingTab({ onRequireTopup }) {
+export default function PricingTab({ onRequireTopup, showOnly }) {
   const [plans, setPlans] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -54,8 +54,87 @@ export default function PricingTab({ onRequireTopup }) {
     return <div className="text-[13px] text-red-500 font-medium">{error}</div>;
   }
 
-  const isTrial = subscription?.status === "TRIAL";
+    const isTrial = subscription?.status === "TRIAL";
   const activeSlug = subscription?.plan?.slug || "";
+
+  if (showOnly) {
+    const plan = plans.find(p => p.slug === showOnly);
+    if (!plan) return null;
+
+    const isActive = plan.slug === activeSlug;
+
+    return (
+      <div className="space-y-12 py-6">
+        <div className="w-full max-w-4xl mx-auto overflow-hidden rounded-[3rem] bg-white border border-zinc-100 shadow-sm relative group">
+           {/* Background Decoration */}
+           <div className="absolute top-0 right-0 h-64 w-64 bg-[#a3e635] blur-[120px] opacity-[0.03] -mr-32 -mt-32 transition-all group-hover:opacity-[0.05]" />
+           
+           <div className="p-8 md:p-12 flex flex-col md:flex-row gap-10 relative z-10">
+              {/* Left Side: Pricing Hero */}
+              <div className="flex-1 space-y-8 flex flex-col justify-center">
+                 <div>
+                    <span className="inline-flex items-center rounded-full bg-[#a3e63511] border border-[#a3e63522] px-3 py-1 text-[10px] font-bold text-[#6f9f00] uppercase tracking-widest mb-4">
+                       🎁 KES 5,000 Welcome Gift
+                    </span>
+                    <h2 className="text-[28px] font-black tracking-tight text-zinc-900 leading-tight mb-2">The Welcome Plan</h2>
+                    <p className="text-zinc-500 text-[14px] max-w-xs leading-relaxed">Everything you need to start collecting and billing today.</p>
+                 </div>
+
+                 <div className="space-y-1">
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-[48px] font-black tracking-tighter text-zinc-900">KES 0</span>
+                       <span className="text-[14px] font-bold text-[#a3e635] uppercase tracking-widest">today</span>
+                    </div>
+                    <p className="text-zinc-400 text-[13px] font-medium">
+                      then KES {parseFloat(plan.monthly_fee_kes).toLocaleString()} starting next month
+                    </p>
+                 </div>
+
+                 <div className="pt-2">
+                    <button 
+                        disabled={isActive || actionLoading === plan.slug || actionLoading !== ""}
+                        onClick={() => handleSubscribe(plan.slug)}
+                        className="h-14 px-10 rounded-2xl bg-[#a3e635] text-zinc-900 font-bold text-base hover:bg-[#9de500] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                    >
+                        {isActive ? "Active Plan" : actionLoading === plan.slug ? "Activating..." : "Claim Offer & Continue"}
+                    </button>
+                 </div>
+              </div>
+
+              {/* Right Side: Features */}
+              <div className="flex-1 bg-zinc-50 rounded-[2.5rem] p-8 border border-zinc-100 flex flex-col justify-between">
+                 <div className="space-y-6">
+                    <h4 className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">Included Benefits</h4>
+                    <ul className="space-y-4">
+                       {[
+                          "Up to 10 Collection Outlets",
+                          "2 Payment Channel Links",
+                          "Automatic SMS Notifications",
+                          "Real-time Transaction Ledger",
+                          "30-Day Managed Free Trial",
+                       ].map(feat => (
+                          <li key={feat} className="flex items-center gap-3 text-[14px]">
+                             <div className="h-5 w-5 rounded-full bg-[#a3e63522] flex items-center justify-center text-[#6f9f00] text-[10px] font-bold">✓</div>
+                             <span className="font-semibold text-zinc-600">{feat}</span>
+                          </li>
+                       ))}
+                    </ul>
+                 </div>
+                 
+                 <div className="pt-6 mt-10 border-t border-zinc-200/60 text-[11px] text-zinc-400 leading-relaxed italic">
+                    "The KES 5,000 credit covers your KES 3,000 platform fee and gives you KES 2,000 for your first notifications. Zero out-of-pocket cost to start."
+                 </div>
+              </div>
+           </div>
+           <div className="text-center pb-8">
+             <p className="text-[12px] text-zinc-400">
+               Need more capacity? <button onClick={() => window.location.href='/dashboard/billing'} className="font-bold text-zinc-900 underline hover:text-[#9de500]">View Growth and Enterprise plans</button>
+             </p>
+           </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -93,9 +172,8 @@ export default function PricingTab({ onRequireTopup }) {
         </div>
       </div>
 
-      {/* Plans List */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {plans.map((plan) => {
+      <div className={`grid gap-6 ${showOnly ? "max-w-md mx-auto" : "md:grid-cols-3"}`}>
+        {plans.filter(p => !showOnly || p.slug === showOnly).map((plan) => {
           const isActive = plan.slug === activeSlug;
           return (
             <div 
@@ -106,10 +184,27 @@ export default function PricingTab({ onRequireTopup }) {
             >
               <div className="mb-4">
                 <h3 className="text-[18px] font-bold text-zinc-900">{plan.name}</h3>
-                <div className="mt-2 flex items-baseline text-zinc-900">
-                  <span className="text-[32px] font-black tracking-tight">{parseFloat(plan.monthly_fee_kes).toLocaleString()}</span>
-                  <span className="ml-1 text-[13px] font-bold text-zinc-400">KES /mo</span>
+                <div className="mt-2 flex flex-col text-zinc-900">
+                  {parseFloat(plan.monthly_fee_kes) === 0 ? (
+                    <span className="text-[32px] font-black tracking-tight">Custom</span>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline">
+                        <span className="text-[32px] font-black tracking-tight">KES 0</span>
+                        <span className="ml-1 text-[13px] font-bold text-[#a3e635] uppercase tracking-wider">Today</span>
+                      </div>
+                      <div className="text-[12px] font-bold text-zinc-400">
+                        then KES {parseFloat(plan.monthly_fee_kes).toLocaleString()} starting next month
+                      </div>
+                    </>
+                  )}
                 </div>
+                {plan.slug === 'starter' && (
+                  <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#a3e63511] px-2.5 py-1 text-[10px] font-bold text-[#6f9f00] uppercase tracking-wider">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#a3e635]" />
+                    Starter Promo: 30 Days Free
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 space-y-4 text-[13px] text-zinc-600">

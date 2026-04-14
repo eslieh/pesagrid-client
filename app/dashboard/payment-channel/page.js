@@ -45,6 +45,7 @@ export default function PaymentChannelsPage() {
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
   const [pendingMfaAction, setPendingMfaAction] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [mfaError, setMfaError] = useState("");
 
   // Delete state
   const [deletingId, setDeletingId] = useState(null);
@@ -140,6 +141,7 @@ export default function PaymentChannelsPage() {
     
     setDeletingId(id);
     setMessage({ type: "", text: "" });
+    setMfaError("");
     try {
       await requestMfaCode();
       setPendingMfaAction({ type: 'delete', id });
@@ -178,6 +180,7 @@ export default function PaymentChannelsPage() {
         payload.paybill = formData.paybill;
       }
 
+      setMfaError("");
       await requestMfaCode();
       setPendingMfaAction({
         type: editingChannel ? 'update' : 'create',
@@ -195,6 +198,7 @@ export default function PaymentChannelsPage() {
   const handleMfaVerify = async (code) => {
     setIsVerifying(true);
     setMessage({ type: "", text: "" });
+    setMfaError("");
 
     try {
       if (pendingMfaAction.type === 'delete') {
@@ -214,7 +218,8 @@ export default function PaymentChannelsPage() {
       setIsMfaModalOpen(false);
       setPendingMfaAction(null);
     } catch (err) {
-      setMessage({ type: "error", text: err.message || "Failed to complete action with provided code." });
+      setMfaError(err.message || "Failed to complete action with provided code.");
+      // Note: We don't call setMessage here anymore, keep it in the modal
     } finally {
       setIsVerifying(false);
       // clear code input on parent state if it existed, but modal resets automatically since we remount/clear state on exit when remounted, wait modal internally holds 'code' state which doesn't clear until remounted.
@@ -227,6 +232,7 @@ export default function PaymentChannelsPage() {
       <MfaVerificationModal
         isOpen={isMfaModalOpen}
         isLoading={isVerifying}
+        error={mfaError}
         onClose={() => {
           setIsMfaModalOpen(false);
           setPendingMfaAction(null);

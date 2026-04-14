@@ -6,20 +6,31 @@ import { useRouter } from "next/navigation";
 import { Card } from "../pesagrid/components/dashboard/UI";
 import { getBusinessProfile, createBusinessProfile, updateBusinessProfile } from "../../lib/Account";
 import { getTemplates, createTemplatesBulk, getTemplateLibrary } from "../../lib/Notifications";
-import { getCurrentUser } from "../../lib/Auth";
+import { getCurrentUser, requestMfaCode } from "../../lib/Auth";
 import PricingTab from "../dashboard/billing/components/PricingTab";
+import { MfaVerificationModal } from "../pesagrid/components/dashboard/MfaVerificationModal";
 
 const steps = [
   { id: 1, title: "Business Identity", desc: "Your branding and contact info" },
-  { id: 2, title: "Choose Use Case", desc: "Automate your notifications" },
-  { id: 3, title: "Select a Plan", desc: "Pick a tier that fits your volume" },
-  { id: 4, title: "Connect Channel", desc: "Register your first payment provider" },
+  { id: 2, title: "Choose Use Case", desc: "Determine your focus" },
+  { id: 3, title: "Select a Plan", desc: "Pick a fitting volume tier" },
+  { id: 4, title: "Connect Channel", desc: "Securely link your bank/M-PESA" },
+  { id: 5, title: "Launch Setup", desc: "Create your first collection setup" },
 ];
 
 const PSP_LOGOS = {
   mpesa: "/psp/mpesa.png",
   kcb: "/psp/kcb.png",
 };
+
+const CP_TYPES = [
+  { id: "fleet", icon: "🚌", label: "Fleet", desc: "Vehicles" },
+  { id: "campaign", icon: "🏛️", label: "Campaign", desc: "Fundraising" },
+  { id: "donation", icon: "⛪", label: "Donations", desc: "Gifts" },
+  { id: "fee_collection", icon: "🎓", label: "Fees", desc: "Schools" },
+  { id: "event", icon: "🏟️", label: "Event", desc: "Tickets" },
+  { id: "custom", icon: "⚡", label: "Custom", desc: "Flexible" },
+];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -44,7 +55,42 @@ export default function OnboardingPage() {
     display_name: "",
     paybill: "",
   });
+  const [registeredPspId, setRegisteredPspId] = useState(null);
+
+  // Step 5 specific data
+  const [cpData, setCpData] = useState({
+    cp_type: "custom",
+    name: "",
+    account_no: "",
+    description: "",
+    goal_amount: "",
+    goal_period: "daily",
+    compliance_threshold: "",
+    is_active: true,
+    sms_acknowledgement: true,
+  });
+  const [invoiceData, setInvoiceData] = useState({
+    payer_name: "",
+    phone: "",
+    email: "",
+    account_no: "",
+    amount: "",
+    description: "",
+    due_date: "",
+    is_recurring: false,
+    recurrence_type: "monthly",
+    day_of_month: 28,
+    day_of_week: 0,
+    interval_days: 1,
+    grace_period_days: 0,
+    start_date: new Date().toISOString().split('T')[0],
+  });
   const [showFinalSuccess, setShowFinalSuccess] = useState(false);
+
+  // MFA states
+  const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [mfaError, setMfaError] = useState("");
 
   useEffect(() => {
     async function init() {
@@ -123,6 +169,20 @@ export default function OnboardingPage() {
     e.preventDefault();
     setIsSaving(true);
     try {
+      setMfaError("");
+      await requestMfaCode();
+      setIsMfaModalOpen(true);
+    } catch (err) {
+      alert(err.message || "Failed to initiate verification.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleMfaVerify = async (code) => {
+    setIsVerifying(true);
+    setMfaError("");
+    try {
       const { registerPaymentChannel } = await import("../../lib/PaymentChannel");
       
       const payload = {
@@ -132,11 +192,68 @@ export default function OnboardingPage() {
         meta: {}
       };
 
-      await registerPaymentChannel(payload);
+      const res = await registerPaymentChannel(payload, code);
+      setRegisteredPspId(res.id);
+      setIsMfaModalOpen(false);
+      setStep(5);
+    } catch (err) {
+      setMfaError(err.message || "Failed to register channel. Please verify your code and try again.");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleLaunchSetup = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      if (useCase === 'collection') {
+        const { createCollectionPoint, linkCollectionPointChannel } = await import("../../lib/CollectionPoint");
+        const cp = await createCollectionPoint({
+          ...cpData,
+          goal_amount: cpData.goal_amount ? parseFloat(cpData.goal_amount) : null,
+          compliance_threshold: cpData.compliance_threshold ? parseFloat(cpData.compliance_threshold) : null,
+          meta: {}
+        });
+        if (registeredPspId) {
+          await linkCollectionPointChannel(cp.id, {
+            psp_config_id: registeredPspId,
+            label: "Primary Linked"
+          });
+        }
+      } else if (useCase === 'invoicing') {
+        const { unifiedCreate } = await import("../../lib/Obligation");
+        const payload = {
+          name: invoiceData.payer_name,
+          phone: invoiceData.phone || undefined,
+          email: invoiceData.email || undefined,
+          account_no: invoiceData.account_no || undefined,
+          amount: parseFloat(invoiceData.amount),
+          description: invoiceData.description,
+          is_recurring: invoiceData.is_recurring,
+          meta: {}
+        };
+
+        if (!invoiceData.is_recurring && invoiceData.due_date) {
+          payload.due_date = new Date(invoiceData.due_date).toISOString();
+        }
+
+        if (invoiceData.is_recurring) {
+          payload.recurring = {
+            recurrence_type: invoiceData.recurrence_type,
+            start_date: new Date(invoiceData.start_date).toISOString(),
+            day_of_month: parseInt(invoiceData.day_of_month) || 1,
+            day_of_week: parseInt(invoiceData.day_of_week) || 0,
+            interval_days: parseInt(invoiceData.interval_days) || 1,
+            grace_period_days: parseInt(invoiceData.grace_period_days) || 0
+          };
+        }
+
+        await unifiedCreate(payload);
+      }
       setShowFinalSuccess(true);
     } catch (err) {
-      alert(err.message || "Failed to register channel. You can skip this for now.");
-      // Even if it fails, we let them proceed to dashboard
+      console.error("Setup failed:", err);
       setShowFinalSuccess(true);
     } finally {
       setIsSaving(false);
@@ -153,6 +270,14 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col">
+      <MfaVerificationModal
+        isOpen={isMfaModalOpen}
+        isLoading={isVerifying}
+        error={mfaError}
+        onClose={() => setIsMfaModalOpen(false)}
+        onVerify={handleMfaVerify}
+      />
+
       {/* Header / Progress bar */}
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
@@ -175,7 +300,7 @@ export default function OnboardingPage() {
             ))}
           </div>
           <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-widest">
-            Step {step} of 4
+            Step {step} of 5
           </div>
         </div>
       </header>
@@ -210,18 +335,29 @@ export default function OnboardingPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Primary Email</label>
+                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Primary Email (Required)</label>
                        <input 
                         required
                         type="email"
                         value={profile.email}
                         onChange={e => setProfile({...profile, email: e.target.value})}
                         className="w-full rounded-2xl border border-zinc-200 bg-white px-5 py-3.5 text-[15px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
-                        placeholder="hello@example.com"
+                        placeholder="hello@yourbusiness.com"
                       />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Display Name (Receiver)</label>
+                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Business Phone (Required)</label>
+                       <input 
+                        required
+                        type="tel"
+                        value={profile.phone}
+                        onChange={e => setProfile({...profile, phone: e.target.value})}
+                        className="w-full rounded-2xl border border-zinc-200 bg-white px-5 py-3.5 text-[15px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                        placeholder="2547XXXXXXXX"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Display Name (Receipts)</label>
                        <input 
                         required
                         value={profile.display_name}
@@ -230,17 +366,8 @@ export default function OnboardingPage() {
                         placeholder="e.g. Finex Support"
                       />
                     </div>
-                    <div className="space-y-2">
-                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Logo URL (Optional)</label>
-                       <input 
-                        value={profile.logo_url}
-                        onChange={e => setProfile({...profile, logo_url: e.target.value})}
-                        className="w-full rounded-2xl border border-zinc-200 bg-white px-5 py-3.5 text-[15px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
-                        placeholder="https://yourbrand.com/logo.png"
-                      />
-                    </div>
                     <div className="md:col-span-2 space-y-2">
-                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Business Address</label>
+                       <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Physical/Business Address</label>
                        <input 
                         required
                         value={profile.address}
@@ -329,11 +456,8 @@ export default function OnboardingPage() {
                 <p className="mt-2 text-zinc-400 text-[14px]">You can always upgrade or downgrade later.</p>
               </div>
 
-              <div className="bg-white p-8 md:p-10 rounded-[3rem] border border-zinc-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8">
-                   <span className="rounded-full bg-blue-50 px-4 py-1.5 text-[11px] font-bold text-blue-600 uppercase tracking-widest">30-Day Free Trial Included</span>
-                </div>
-                <PricingTab onRequireTopup={() => setStep(4)} />
+              <div className="relative">
+                <PricingTab onRequireTopup={() => setStep(4)} showOnly="starter" />
               </div>
 
               <div className="flex justify-between items-center">
@@ -430,7 +554,337 @@ export default function OnboardingPage() {
                         disabled={isSaving}
                         className="h-14 px-10 rounded-2xl bg-zinc-900 text-white font-bold text-base hover:bg-zinc-800 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                       >
-                        {isSaving ? "Connecting..." : "Connect Channel & Finish"}
+                        {isSaving ? "Connecting..." : "Connect & Continue"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* STEP 5: INITIAL SETUP (DYNAMIC) */}
+          {step === 5 && !showFinalSuccess && (
+            <motion.div
+              key="step5"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8 pb-12"
+            >
+              <div className="max-w-xl">
+                <h1 className="text-[32px] font-bold tracking-tight text-zinc-900 leading-tight">
+                  {useCase === 'collection' ? 'Setup your first \n collection point.' : 'Create your first \n invoice.'}
+                </h1>
+                <p className="mt-2 text-zinc-400 text-[14px]">
+                  {useCase === 'collection' 
+                    ? "Link your Paybill to a specific point of sale (e.g. a bus or branch)." 
+                    : "Generate your first bill to track receivables immediately."}
+                </p>
+              </div>
+
+              <Card className="p-8 md:p-10 !rounded-[3rem]">
+                <form onSubmit={handleLaunchSetup} className="space-y-10">
+                  {useCase === 'collection' ? (
+                    <div className="space-y-10">
+                      {/* CP TYPE SELECTOR */}
+                      <div className="space-y-4">
+                        <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Point Type</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {CP_TYPES.map((type) => (
+                            <button
+                              key={type.id}
+                              type="button"
+                              onClick={() => setCpData({ ...cpData, cp_type: type.id })}
+                              className={`flex flex-col items-center justify-center gap-1.5 p-4 rounded-[1.5rem] border transition-all ${
+                                cpData.cp_type === type.id
+                                  ? "border-[#a3e635] bg-[#a3e63511] text-zinc-900 shadow-sm"
+                                  : "border-zinc-100 bg-zinc-50 text-zinc-400 hover:border-zinc-200 hover:bg-white"
+                              }`}
+                            >
+                              <div className="text-xl">{type.icon}</div>
+                              <div className="text-center">
+                                <div className="text-[11px] font-bold leading-tight">{type.label}</div>
+                                <div className="text-[9px] opacity-60">{type.desc}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* IDENTITY */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                        <div className="space-y-1.5">
+                           <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">
+                             {cpData.cp_type === 'fleet' ? 'Point Name (e.g. Plate No)' :
+                              cpData.cp_type === 'campaign' ? 'Point Name (e.g. Cause Name)' :
+                              cpData.cp_type === 'donation' ? 'Point Name (e.g. Fund name)' :
+                              cpData.cp_type === 'fee_collection' ? 'Point Name (e.g. Grade/Class)' :
+                              cpData.cp_type === 'event' ? 'Point Name (e.g. Event Name)' : 'Point Name'}
+                           </label>
+                           <input 
+                            required
+                            value={cpData.name}
+                            onChange={e => setCpData({...cpData, name: e.target.value})}
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                            placeholder={
+                              cpData.cp_type === 'fleet' ? 'e.g. KAB 123C' :
+                              cpData.cp_type === 'campaign' ? 'e.g. Save the Lions' :
+                              cpData.cp_type === 'donation' ? 'e.g. Building Fund' :
+                              cpData.cp_type === 'fee_collection' ? 'e.g. Grade 4 North' :
+                              cpData.cp_type === 'event' ? 'e.g. Summer Jam 2024' : 'e.g. Point 1'
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                           <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">
+                             {cpData.cp_type === 'fleet' ? 'Driver / Route ID' :
+                              cpData.cp_type === 'fee_collection' ? 'Student / Adm Number' :
+                              cpData.cp_type === 'donation' ? 'Donor / Gift Reference' : 'Account reference'}
+                           </label>
+                           <input 
+                            required
+                            value={cpData.account_no}
+                            onChange={e => setCpData({...cpData, account_no: e.target.value})}
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                            placeholder={
+                              cpData.cp_type === 'fleet' ? 'e.g. D-101' :
+                              cpData.cp_type === 'fee_collection' ? 'e.g. ADM-902' :
+                              cpData.cp_type === 'campaign' ? 'e.g. C-44' : 'e.g. 101'
+                            }
+                          />
+                        </div>
+                        <div className="md:col-span-2 space-y-1.5">
+                           <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Receipt Description</label>
+                           <input 
+                            value={cpData.description}
+                            onChange={e => setCpData({...cpData, description: e.target.value})}
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                            placeholder="Thank you for your payment"
+                          />
+                        </div>
+                      </div>
+
+                      {/* GOALS */}
+                      <div className="pt-4 border-t border-zinc-100">
+                        <h4 className="text-[12px] font-bold text-zinc-900 mb-4">Trackable Goals (Optional)</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                          <div className="space-y-1.5">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Target Amount (KES)</label>
+                             <input 
+                              type="number"
+                              value={cpData.goal_amount}
+                              onChange={e => setCpData({...cpData, goal_amount: e.target.value})}
+                              className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Goal Period</label>
+                             <select
+                              value={cpData.goal_period}
+                              onChange={e => setCpData({...cpData, goal_period: e.target.value})}
+                              className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 appearance-none focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                             >
+                               <option value="daily">Daily</option>
+                               <option value="weekly">Weekly</option>
+                               <option value="monthly">Monthly</option>
+                             </select>
+                          </div>
+                        </div>
+                        <div className="mt-8 p-4 rounded-2xl bg-[#a3e63511] border border-[#a3e63522] flex items-center gap-3">
+                           <span className="text-xl">⚡</span>
+                           <p className="text-[12px] text-zinc-500 leading-relaxed">
+                             Your Paybill (<strong>{channelData.display_name}</strong>) will be automatically linked to this point.
+                           </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-10">
+                       {/* PAYER INFO */}
+                       <div className="space-y-4">
+                        <h4 className="text-[12px] font-bold text-zinc-900 border-b border-zinc-100 pb-3">Recipient Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                          <div className="space-y-1.5">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Payer Name</label>
+                             <input 
+                              required
+                              value={invoiceData.payer_name}
+                              onChange={e => setInvoiceData({...invoiceData, payer_name: e.target.value})}
+                              className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                              placeholder="John Doe"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Phone (Optional)</label>
+                             <input 
+                              type="tel"
+                              value={invoiceData.phone}
+                              onChange={e => setInvoiceData({...invoiceData, phone: e.target.value})}
+                              className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                              placeholder="2547..."
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Email (Optional)</label>
+                             <input 
+                              type="email"
+                              value={invoiceData.email}
+                              onChange={e => setInvoiceData({...invoiceData, email: e.target.value})}
+                              className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                              placeholder="john@example.com"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Account Ref (e.g. Unit 4)</label>
+                             <input 
+                              value={invoiceData.account_no}
+                              onChange={e => setInvoiceData({...invoiceData, account_no: e.target.value})}
+                              className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                              placeholder="REF-001"
+                            />
+                          </div>
+                        </div>
+                       </div>
+
+                       {/* INVOICE DETAILS */}
+                       <div className="space-y-4">
+                        <h4 className="text-[12px] font-bold text-zinc-900 border-b border-zinc-100 pb-3">Invoice Basics</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                          <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Amount Due (KES)</label>
+                              <input 
+                                required
+                                type="number"
+                                value={invoiceData.amount}
+                                onChange={e => setInvoiceData({...invoiceData, amount: e.target.value})}
+                                className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                                placeholder="0.00"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Primary Due Date</label>
+                              <input 
+                                required={!invoiceData.is_recurring}
+                                type="date"
+                                disabled={invoiceData.is_recurring}
+                                value={invoiceData.due_date}
+                                onChange={e => setInvoiceData({...invoiceData, due_date: e.target.value})}
+                                className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100 disabled:bg-zinc-50 disabled:text-zinc-400"
+                              />
+                            </div>
+                            <div className="md:col-span-2 space-y-1.5">
+                               <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Description</label>
+                               <input 
+                                required
+                                value={invoiceData.description}
+                                onChange={e => setInvoiceData({...invoiceData, description: e.target.value})}
+                                className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                                placeholder="Service Fee - March"
+                              />
+                            </div>
+                        </div>
+                       </div>
+
+                       {/* RECURRING SECTION */}
+                       <div className="pt-4 border-t border-zinc-100">
+                         <div className="flex items-center justify-between mb-6">
+                            <div className="space-y-0.5">
+                               <h4 className="text-[12px] font-bold text-zinc-900">Recurring Billing</h4>
+                               <p className="text-[10px] text-zinc-400">Automatically repeat this invoice.</p>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => setInvoiceData({...invoiceData, is_recurring: !invoiceData.is_recurring})}
+                              className={`h-6 w-10 rounded-full transition-all relative ${invoiceData.is_recurring ? 'bg-[#a3e635]' : 'bg-zinc-200'}`}
+                            >
+                               <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${invoiceData.is_recurring ? 'left-4.5 shadow-sm' : 'left-0.5'}`} />
+                            </button>
+                         </div>
+
+                         {invoiceData.is_recurring && (
+                           <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            className="space-y-6 overflow-hidden"
+                           >
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Billing Cycle</label>
+                                  <select
+                                    value={invoiceData.recurrence_type}
+                                    onChange={e => setInvoiceData({...invoiceData, recurrence_type: e.target.value})}
+                                    className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 appearance-none focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                                  >
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="custom">Custom (Days)</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">
+                                    {invoiceData.recurrence_type === 'monthly' ? 'Day of month' : invoiceData.recurrence_type === 'weekly' ? 'Day of week' : 'Interval (Days)'}
+                                  </label>
+                                  <input 
+                                    type="number"
+                                    value={invoiceData.recurrence_type === 'monthly' ? invoiceData.day_of_month : invoiceData.recurrence_type === 'weekly' ? invoiceData.day_of_week : invoiceData.interval_days}
+                                    onChange={e => {
+                                      const val = parseInt(e.target.value);
+                                      if (invoiceData.recurrence_type === 'monthly') setInvoiceData({...invoiceData, day_of_month: val});
+                                      else if (invoiceData.recurrence_type === 'weekly') setInvoiceData({...invoiceData, day_of_week: val});
+                                      else setInvoiceData({...invoiceData, interval_days: val});
+                                    }}
+                                    className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">First Gen Date</label>
+                                  <input 
+                                    required
+                                    type="date"
+                                    value={invoiceData.start_date}
+                                    onChange={e => setInvoiceData({...invoiceData, start_date: e.target.value})}
+                                    className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 pl-1">Grace Period (Days)</label>
+                                  <input 
+                                    type="number"
+                                    value={invoiceData.grace_period_days}
+                                    onChange={e => setInvoiceData({...invoiceData, grace_period_days: parseInt(e.target.value)})}
+                                    className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-medium text-zinc-900 placeholder:text-zinc-400 transition-all focus:border-zinc-400 focus:outline-none focus:ring-4 focus:ring-zinc-100"
+                                  />
+                                </div>
+                             </div>
+                             <div className="p-3 rounded-xl bg-[#a3e63511] border border-[#a3e63522] flex items-center gap-2">
+                               <span className="text-lg">📅</span>
+                               <p className="text-[11px] text-zinc-500 leading-relaxed">
+                                 Invoice will generate <strong>{invoiceData.recurrence_type}</strong> starting <strong>{invoiceData.start_date}</strong>.
+                               </p>
+                            </div>
+                           </motion.div>
+                         )}
+                       </div>
+                    </div>
+                  )}
+
+                  <div className="pt-8 flex items-center justify-between border-t border-zinc-100">
+                    <button type="button" onClick={() => setStep(4)} className="text-zinc-400 text-[13px] font-bold hover:text-zinc-900 transition-colors">
+                      ← Back
+                    </button>
+                    <div className="flex gap-4 items-center">
+                       <button type="button" onClick={() => setShowFinalSuccess(true)} className="text-zinc-400 text-[13px] font-bold hover:text-zinc-900 transition-colors mr-2">
+                         Skip for now
+                       </button>
+                       <button
+                        type="submit"
+                        disabled={isSaving}
+                        className="h-14 px-10 rounded-2xl bg-[#a3e635] text-zinc-900 font-bold text-base hover:bg-[#9de500] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                      >
+                        {isSaving ? "Saving..." : "Setup & Finish"}
                       </button>
                     </div>
                   </div>
