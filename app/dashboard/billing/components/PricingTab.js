@@ -76,13 +76,13 @@ export default function PricingTab({ onRequireTopup, showOnly }) {
                     <span className="inline-flex items-center rounded-full bg-[#a3e63511] border border-[#a3e63522] px-3 py-1 text-[10px] font-bold text-[#6f9f00] uppercase tracking-widest mb-4">
                        🎁 KES 5,000 Welcome Gift
                     </span>
-                    <h2 className="text-[28px] font-black tracking-tight text-zinc-900 leading-tight mb-2">The Welcome Plan</h2>
+                    <h2 className="text-[28px] font-bold tracking-tight text-zinc-900 leading-tight">The Welcome Plan</h2>
                     <p className="text-zinc-500 text-[14px] max-w-xs leading-relaxed">Everything you need to start collecting and billing today.</p>
                  </div>
 
                  <div className="space-y-1">
                     <div className="flex items-baseline gap-2">
-                       <span className="text-[48px] font-black tracking-tighter text-zinc-900">KES 0</span>
+                       <span className="text-[48px] font-bold tracking-tighter text-zinc-900">KES 0</span>
                        <span className="text-[14px] font-bold text-[#a3e635] uppercase tracking-widest">today</span>
                     </div>
                     <p className="text-zinc-400 text-[13px] font-medium">
