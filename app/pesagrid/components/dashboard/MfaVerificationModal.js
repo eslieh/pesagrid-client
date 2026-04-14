@@ -12,7 +12,7 @@ import { Card } from "./UI";
  * @param {function} onVerify - function(code) called when user submits code
  * @param {boolean} isLoading - Whether the verification is in progress
  */
-export function MfaVerificationModal({ isOpen, onClose, onVerify, isLoading }) {
+export function MfaVerificationModal({ isOpen, onClose, onVerify, isLoading, error }) {
   const [code, setCode] = useState("");
 
   const handleSubmit = (e) => {
@@ -52,6 +52,15 @@ export function MfaVerificationModal({ isOpen, onClose, onVerify, isLoading }) {
                   Enter the 6-digit code sent to your email to authorize this action.
                 </p>
               </div>
+
+              {error && (
+                <div className="mb-6 rounded-xl bg-red-50 p-4 text-[12px] font-medium text-red-600 border border-red-100 flex items-start gap-3">
+                  <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="leading-relaxed">{error}</p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit}>
                 <div className="mb-6">

@@ -256,7 +256,7 @@ export default function InvoicesPage() {
 
       if (formData.is_recurring) {
         payload.recurring = {
-          recurrence_type: formData.recurrence_type.toUpperCase(),
+          recurrence_type: formData.recurrence_type,
           start_date: formData.start_date ? new Date(formData.start_date).toISOString() : new Date().toISOString(),
           day_of_month: parseInt(formData.day_of_month) || 1,
           day_of_week: parseInt(formData.day_of_week) || 0,
