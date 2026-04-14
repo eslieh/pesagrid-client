@@ -293,7 +293,7 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center">
             <Link
-              href="/pesagrid"
+              href="/"
               className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -608,24 +608,21 @@ export default function LandingClient() {
               {
                 tier: "Starter",
                 price: 3000,
-                fee: "0.30",
                 wallet: "KES 5,000 min",
-                features: ["Single branch", "2 connected PSPs", "Manual import support"],
+                features: ["1 branch", "Up to 2 connected PSPs", "Automated M-PESA import", "Weekly reporting emails"],
               },
               {
                 tier: "Growth",
                 price: 12000,
-                fee: "0.20",
                 wallet: "KES 15,000 min",
                 isFeatured: true,
-                features: ["Up to 10 points", "Unlimited PSPs", "Real-time sync"],
+                features: ["Up to 20 branches", "Unlimited PSPs", "Real-time sync", "Multi-channel reminders"],
               },
               {
                 tier: "Enterprise",
                 price: "Custom",
-                fee: "0.10",
-                wallet: "Tailored min",
-                features: ["Unlimited points", "Custom APIs", "Priority support"],
+                wallet: "Tailored",
+                features: ["Unlimited branches", "Custom API & Account Mgr", "Detailed ledger & Audit trails", "On-prem deployment"],
               },
             ].map((p, idx) => (
               <Reveal key={p.tier} delay={0.05 * idx}>
@@ -639,7 +636,7 @@ export default function LandingClient() {
                       {typeof p.price === 'number' && <span className="text-xs text-zinc-500">/mo</span>}
                     </div>
                     <div className="mt-2 text-xs text-zinc-600">
-                      {p.fee} per reconciliation • KES 0.50 per SMS
+                      KES 0.50 per SMS notification
                     </div>
                   </div>
                   
@@ -679,31 +676,51 @@ export default function LandingClient() {
             <div className="grid gap-8 md:grid-cols-2 md:items-center">
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight">
-                  Supported payment service providers
+                  Now Supporting M-PESA + KCB Bank
                 </h2>
                 <p className="mt-3 text-zinc-600">
-                  Connect the channels your customers already use. Ingest
-                  statements, match payments, and keep a clean audit trail.
+                  Connect the primary payment channels in Kenya. Ingest
+                  real-time data, match payments, and keep a clean audit trail across these providers.
                 </p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {[
-                  { name: "M-PESA", note: "Paybill / Till / Statements" },
-                  { name: "KCB Bank", note: "Transfers / Collections" },
-                  { name: "Airtel Money", note: "Collections (optional)" },
-                  { name: "Cards", note: "Gateway integrations (optional)" },
+                  { 
+                    name: "M-PESA", 
+                    logo: "/psp/mpesa.png",
+                    note: "Paybill / Till / Statements",
+                    width: 80,
+                    height: 40
+                  },
+                  { 
+                    name: "KCB Bank", 
+                    logo: "/psp/kcb.png",
+                    note: "Transfers / Collections",
+                    width: 70,
+                    height: 50
+                  },
                 ].map((p, idx) => (
                   <Reveal key={p.name} delay={0.04 * idx}>
-                    <SoftPanel className="p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold tracking-tight">
-                          {p.name}
+                    <SoftPanel className="p-6 transition-all hover:shadow-md hover:-translate-y-1">
+                      <div className="flex flex-col gap-4">
+                        <div className="relative h-12 w-full">
+                          <Image
+                            src={p.logo}
+                            alt={`${p.name} logo`}
+                            fill
+                            className="object-contain object-left grayscale transition-all group-hover:grayscale-0 hover:grayscale-0"
+                          />
                         </div>
-                        <span className="inline-flex items-center rounded-full bg-lime-400/20 px-3 py-1 text-[11px] font-semibold text-lime-800 ring-1 ring-lime-500/20">
-                          supported
-                        </span>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold tracking-tight text-zinc-900">
+                            {p.name}
+                          </div>
+                          <span className="inline-flex items-center rounded-full bg-lime-400/20 px-3 py-1 text-[11px] font-semibold text-lime-800 ring-1 ring-lime-500/20">
+                            live
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-bold">{p.note}</div>
                       </div>
-                      <div className="mt-1 text-sm text-zinc-600">{p.note}</div>
                     </SoftPanel>
                   </Reveal>
                 ))}
@@ -733,7 +750,7 @@ export default function LandingClient() {
             {[
               {
                 step: "Ingest",
-                desc: "Connect M-PESA and bank sources (e.g., KCB). Import statements or integrate directly.",
+                desc: "Connect M-PESA and bank sources (e.g., KCB). Listen directly to PSPs and banks for incoming payments.",
               },
               {
                 step: "Match",
@@ -827,13 +844,13 @@ export default function LandingClient() {
               <div className="flex flex-wrap gap-x-8 gap-y-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Phone</span>
-                  <a href="tel:+254795739291" className="font-semibold text-zinc-900 hover:text-lime-600 transition-colors">
+                  <a href="tel:+254795739291" className="font-semibold text-zinc-500 hover:text-lime-600 transition-colors">
                     +254 795 739291
                   </a>
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Email</span>
-                  <a href="mailto:pesagrid@ryfty.net" className="font-semibold text-zinc-900 hover:text-lime-600 transition-colors">
+                  <a href="mailto:pesagrid@ryfty.net" className="font-semibold text-zinc-500 hover:text-lime-600 transition-colors">
                     pesagrid@ryfty.net
                   </a>
                 </div>
@@ -848,9 +865,15 @@ export default function LandingClient() {
             </div>
             <div className="flex flex-col gap-3 border-t border-zinc-100 pt-6 md:flex-row md:items-center md:justify-between">
               <div>© {year} Pesagrid. All rights reserved.</div>
-              <div className="flex items-center gap-4">
-                <Link className="hover:text-zinc-700" href="/pricing">
+              <div className="flex items-center gap-6">
+                <Link className="hover:text-zinc-700 transition-colors" href="/pricing">
                   Pricing Page
+                </Link>
+                <Link className="hover:text-zinc-700 transition-colors" href="/privacy">
+                  Privacy Policy
+                </Link>
+                <Link className="hover:text-zinc-700 transition-colors" href="/terms">
+                  Terms of Service
                 </Link>
               </div>
             </div>

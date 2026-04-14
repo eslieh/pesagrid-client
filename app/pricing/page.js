@@ -8,7 +8,7 @@ export const metadata = {
   description: "Pricing plans for businesses of all sizes - Starter, Growth, and Enterprise. Automated reconciliation starting at KES 3,000/mo.",
 };
 
-function PricingCard({ tier, price, fee, sms, features, isFeatured = false, walletMin }) {
+function PricingCard({ tier, price, sms, features, isFeatured = false, walletMin }) {
   return (
     <div
       className={`relative flex flex-col rounded-3xl border ${
@@ -33,7 +33,7 @@ function PricingCard({ tier, price, fee, sms, features, isFeatured = false, wall
           )}
         </div>
         <p className="mt-4 text-sm text-zinc-600">
-          {fee} per reconciliation • {sms} per SMS
+          {sms} per SMS notification
         </p>
       </div>
 
@@ -125,15 +125,14 @@ export default function PricingPage() {
             <PricingCard
               tier="Starter"
               price={3000}
-              fee="KES 0.30"
               sms="KES 0.50"
               walletMin="KES 5,000"
               features={[
-                "Single branch setup",
+                "1 branch setup",
                 "Up to 2 connected PSPs",
-                "Standard reconciliation engine",
                 "Automated M-PESA import",
                 "Weekly reporting emails",
+                "Standard reconciliation engine",
               ]}
             />
           </Reveal>
@@ -142,15 +141,14 @@ export default function PricingPage() {
             <PricingCard
               tier="Growth"
               price={12000}
-              fee="KES 0.20"
               sms="KES 0.50"
               walletMin="KES 15,000"
               isFeatured={true}
               features={[
-                "Up to 10 branches/points",
+                "Up to 20 branches/points",
                 "Unlimited connected PSPs",
                 "Real-time reconciliation",
-                "Detailed ledger modals",
+                "Detailed ledger access",
                 "Multi-channel reminders",
                 "Priority support",
               ]}
@@ -161,15 +159,14 @@ export default function PricingPage() {
             <PricingCard
               tier="Enterprise"
               price="Custom"
-              fee="KES 0.10"
               sms="KES 0.50"
-              walletMin="Custom requirement"
+              walletMin="Tailored requirement"
               features={[
                 "Unlimited branches & points",
                 "Custom API integrations",
                 "Dedicated account manager",
                 "Advanced audit trails",
-                "Custom SLA & support",
+                "Custom SLA & Priority Support",
                 "On-prem deployment (optional)",
               ]}
             />
