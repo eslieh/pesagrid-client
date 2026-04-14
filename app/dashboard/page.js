@@ -216,6 +216,21 @@ export default function DashboardPage() {
   });
 
 
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector(".overflow-y-auto");
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      setIsScrolled(scrollContainer.scrollTop > 20);
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    handleScroll();
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, []);
+
   if (loading && !metrics.total_collected) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
@@ -225,45 +240,76 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="grid grid-cols-12 gap-5 p-6 pt-5">
-
-      {/* ── Column 1: Left ─────────────────────────── */}
-      <div className="col-span-12 lg:col-span-5 space-y-5">
-        <h1 className="text-[20px] font-bold tracking-tight text-zinc-900">Dashboard</h1>
-
-        {/* Balance overview chart */}
-        <Card noPadding className="p-5">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h3 className="text-[26px] font-bold text-zinc-900 leading-none">
-                {formatCurrency(metrics.total_collected)}
-              </h3>
-              <p className="text-[11px] font-medium text-zinc-400 mt-1">Total Collected Overview</p>
+    <div className="relative min-h-screen">
+      {/* Sticky Global Header */}
+      <div className={`sticky top-0 z-30 w-full px-6 py-4 transition-all duration-300 ${
+        isScrolled 
+          ? "bg-white/80 backdrop-blur-xl border-b border-zinc-200/50 shadow-sm" 
+          : "bg-transparent border-b-0"
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+             <h1 className="text-[20px] font-bold tracking-tight text-zinc-900 leading-none">Dashboard</h1>
+             {isScrolled && (
+               <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-zinc-100 rounded-full">
+                 <div className="h-1.5 w-1.5 rounded-full bg-[#a3e635] animate-pulse" />
+                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{activePeriod.label} Overview</span>
+               </div>
+             )}
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Period selector pills */}
+            <div className="flex items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-100 p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.label}
+                  onClick={() => setActivePeriod(p)}
+                  className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                    activePeriod.label === p.label
+                      ? "bg-white text-zinc-900 shadow-md scale-[1.05]"
+                      : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-900"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              {/* Period selector pills */}
-              <div className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 p-0.5">
-                {PERIODS.map((p) => (
-                  <button
-                    key={p.label}
-                    onClick={() => setActivePeriod(p)}
-                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${
-                      activePeriod.label === p.label
-                        ? "bg-white text-zinc-900 shadow-sm"
-                        : "text-zinc-400 hover:text-zinc-600"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              {/* Legend */}
-              <div className="flex items-center gap-2 text-[10px] text-zinc-400">
-                <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-[#fdc649]" />Matched</span>
-                <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-[#a3e635]" />Collected</span>
-              </div>
+            
+            <div className="hidden lg:flex items-center gap-3 text-[10px] font-bold text-zinc-400 border-l border-zinc-200 pl-3">
+              <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-[#fdc649]" /> Matched</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-[#a3e635]" /> Collected</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-12 gap-5 p-6 pt-2">
+        {/* ── Column 1: Left ─────────────────────────── */}
+        <div className="col-span-12 lg:col-span-5 space-y-5">
+          {/* Balance overview chart */}
+          <Card noPadding className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[20px] sm:text-[28px] font-bold text-zinc-900 leading-none tracking-tighter truncate">
+                  {formatCurrency(metrics.total_collected)}
+                </h3>
+                <p className="text-[8px] font-bold text-zinc-400 mt-2 uppercase tracking-widest leading-relaxed">
+                  Total Collection Overview
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-zinc-100 text-zinc-500`}>
+                      {activePeriod.label}
+                    </span>
+                    <span className="text-[10px] font-bold text-zinc-900">
+                      {Math.round((metrics.total_matched / (metrics.total_collected || 1)) * 100)}% Matched
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-zinc-300 font-medium">Updated just now</p>
+              </div>
+            </div>
 
           {/* Chart */}
           <div className="relative flex h-44 w-full items-end gap-1.5">
@@ -659,6 +705,7 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+    </div>
     </div>
   );
 }
