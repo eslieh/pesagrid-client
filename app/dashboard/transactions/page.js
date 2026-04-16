@@ -94,8 +94,12 @@ function TransactionsRegistryContent() {
   // Main Fetcher
   const fetchData = useCallback(async (isLoadMore = false) => {
     try {
-      if (isLoadMore) setLoadingMore(true);
-      else setLoading(true);
+      if (isLoadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setTransactions([]);
+      }
 
       const currentSkip = isLoadMore ? skip + limit : 0;
       
@@ -132,7 +136,7 @@ function TransactionsRegistryContent() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [search, accountNo, collectionPointId, dateRange, amountMin, amountMax, sort, skip]);
+  }, [search, accountNo, collectionPointId, dateRange, amountMin, amountMax, selectedPspId, sort, skip, txnStatus, unmatchedOnly]);
   // Initial load
   useEffect(() => {
     fetchData();
