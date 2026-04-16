@@ -275,12 +275,12 @@ export default function InvoiceWizard({
         </button>
         
         <div className="mb-8 flex items-center justify-between border-b border-zinc-100 pb-6">
-          <h2 className="text-[18px] font-black text-zinc-900 flex items-center gap-3">
+          <h2 className="text-[18px] font-bold text-zinc-900 flex items-center gap-3">
             <div className="h-10 w-10 flex items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-lg shadow-zinc-900/20">
               {currentStep}
             </div>
             <div className="flex flex-col">
-                <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-black">Step {currentStep}</span>
+                <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Step {currentStep}</span>
                 <span className="leading-tight">
                     {currentStep === 1 ? 'Payer Identity' : currentStep === 2 ? 'Invoice Details' : 'Review & Dispatch'}
                 </span>
@@ -389,7 +389,7 @@ export default function InvoiceWizard({
 
               <Field label="Amount Due (KES)" required>
                 <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 font-black text-[11px]">KES</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 font-bold text-[11px]">KES</span>
                     <input
                         name="amount"
                         type="number"
@@ -397,7 +397,7 @@ export default function InvoiceWizard({
                         step="0.01"
                         value={formData.amount}
                         onChange={handleChange}
-                        className={`${inputCls} pl-12 font-black`}
+                        className={`${inputCls} pl-12 font-bold`}
                         placeholder="0.00"
                         required
                     />
@@ -431,7 +431,7 @@ export default function InvoiceWizard({
                   <div className="h-6 w-11 rounded-full bg-zinc-200 shadow-inner after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-md after:transition-all after:content-[''] peer-checked:bg-[#a3e635] peer-checked:after:translate-x-full peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#a3e635]/20"></div>
                 </label>
                 <div>
-                  <span className="text-[14px] font-black text-zinc-900 block">Recurring Cycle</span>
+                  <span className="text-[14px] font-bold text-zinc-900 block">Recurring Cycle</span>
                   <span className="text-[11px] text-zinc-500 font-medium">Auto-generate invoices on a defined schedule</span>
                 </div>
               </div>
@@ -558,13 +558,13 @@ export default function InvoiceWizard({
             <div className="pt-2">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="text-[14px] font-black text-zinc-900 leading-none">Custom Ledger Data</h4>
+                  <h4 className="text-[14px] font-bold text-zinc-900 leading-none">Custom Ledger Data</h4>
                   <p className="text-[11px] text-zinc-400 font-medium mt-1">Append unit numbers, house blocks, or category codes.</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddCustomField}
-                  className="text-[11px] font-black text-white bg-zinc-900 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-black transition-all shadow-md shadow-zinc-900/10 active:scale-95"
+                  className="text-[11px] font-bold text-white bg-zinc-900 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-black transition-all shadow-md shadow-zinc-900/10 active:scale-95"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -610,7 +610,7 @@ export default function InvoiceWizard({
                 </div>
               ) : (
                  <div className="rounded-2xl border-2 border-dashed border-zinc-100 py-6 text-center">
-                   <p className="text-[11px] text-zinc-300 font-black uppercase tracking-widest">No custom data appended</p>
+                   <p className="text-[11px] text-zinc-300 font-bold uppercase tracking-widest">No custom data appended</p>
                  </div>
               )}
             </div>
@@ -626,7 +626,7 @@ export default function InvoiceWizard({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h3 className="text-[20px] font-black text-zinc-900 mb-2">Invoice Logic Validated</h3>
+              <h3 className="text-[20px] font-bold text-zinc-900 mb-2">Invoice Logic Validated</h3>
               <p className="text-[14px] text-zinc-500 max-w-sm font-medium">
                 You are about to issue a payment request for <strong className="text-zinc-900">KES {parseFloat(formData.amount || 0).toLocaleString()}</strong> to <strong className="text-zinc-900">{formData.name}</strong>.
               </p>
@@ -634,15 +634,15 @@ export default function InvoiceWizard({
 
             <div className="grid grid-cols-2 gap-x-12 gap-y-6 px-4">
               <div className="space-y-1">
-                <span className="block text-zinc-400 font-black uppercase tracking-widest text-[10px]">Reference / Reason</span>
-                <span className="font-black text-zinc-900 text-[14px]">{formData.description}</span>
+                <span className="block text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Reference / Reason</span>
+                <span className="font-bold text-zinc-900 text-[14px]">{formData.description}</span>
               </div>
               <div className="space-y-1">
-                <span className="block text-zinc-400 font-black uppercase tracking-widest text-[10px]">Net Value</span>
-                <span className="font-black text-zinc-900 text-[14px]">KES {parseFloat(formData.amount || 0).toLocaleString()}</span>
+                <span className="block text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Net Value</span>
+                <span className="font-bold text-zinc-900 text-[14px]">KES {parseFloat(formData.amount || 0).toLocaleString()}</span>
               </div>
               <div className="space-y-1">
-                <span className="block text-zinc-400 font-black uppercase tracking-widest text-[10px]">Billing Type</span>
+                <span className="block text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Billing Type</span>
                 <span className="font-bold text-zinc-900 text-[13px] flex items-center gap-1.5">
                   {formData.is_recurring ? (
                     <>
@@ -658,10 +658,10 @@ export default function InvoiceWizard({
                 </span>
               </div>
               <div className="space-y-1">
-                <span className="block text-zinc-400 font-black uppercase tracking-widest text-[10px]">
+                <span className="block text-zinc-400 font-bold uppercase tracking-widest text-[10px]">
                   {formData.is_recurring ? 'First Generation Date' : 'Settlement Deadline'}
                 </span>
-                <span className="font-black text-zinc-900 text-[13px]">
+                <span className="font-bold text-zinc-900 text-[13px]">
                   {formData.is_recurring ? formData.start_date : (formData.due_date || 'Not Mandatory')}
                 </span>
               </div>
@@ -676,7 +676,7 @@ export default function InvoiceWizard({
               <button
                 type="button"
                 onClick={prevStep}
-                className="px-6 py-3 text-[12px] font-black text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-2xl transition-all flex items-center gap-2 active:scale-95"
+                className="px-6 py-3 text-[12px] font-bold text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-2xl transition-all flex items-center gap-2 active:scale-95"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -690,7 +690,7 @@ export default function InvoiceWizard({
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 text-[12px] font-black text-zinc-400 hover:text-zinc-900 transition-colors"
+              className="px-6 py-3 text-[12px] font-bold text-zinc-400 hover:text-zinc-900 transition-colors"
             >
               Cancel
             </button>
@@ -698,7 +698,7 @@ export default function InvoiceWizard({
                <button
                  type="button"
                  onClick={nextStep}
-                 className="flex items-center gap-2 rounded-2xl bg-zinc-900 px-8 py-3 text-[12px] font-black text-white shadow-xl shadow-zinc-900/10 transition-all hover:bg-black hover:shadow-zinc-900/20 active:scale-95 hover:-translate-y-0.5"
+                 className="flex items-center gap-2 rounded-2xl bg-zinc-900 px-8 py-3 text-[12px] font-bold text-white shadow-xl shadow-zinc-900/10 transition-all hover:bg-black hover:shadow-zinc-900/20 active:scale-95 hover:-translate-y-0.5"
                >
                  Advance Step
                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -710,7 +710,7 @@ export default function InvoiceWizard({
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="flex items-center gap-2 rounded-2xl bg-[#a3e635] px-10 py-3 text-[14px] tracking-tight font-black text-zinc-900 shadow-xl shadow-[#a3e635]/30 transition-all hover:bg-[#9de500] hover:shadow-[#a3e635]/40 active:scale-95 disabled:opacity-50 hover:-translate-y-0.5"
+                className="flex items-center gap-2 rounded-2xl bg-[#a3e635] px-10 py-3 text-[14px] tracking-tight font-bold text-zinc-900 shadow-xl shadow-[#a3e635]/30 transition-all hover:bg-[#9de500] hover:shadow-[#a3e635]/40 active:scale-95 disabled:opacity-50 hover:-translate-y-0.5"
               >
                 {isSubmitting ? (
                   <>
