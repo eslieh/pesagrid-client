@@ -3,10 +3,13 @@
 import { motion } from "framer-motion";
 
 export const badgeColors = {
-  success: "bg-[#a3e635]/20 text-[#65a30d]",
-  pending: "bg-amber-100 text-amber-600",
-  failed: "bg-red-100 text-red-600",
-  matched: "bg-[#a3e635]/20 text-[#65a30d]",
+  success:      "bg-[#a3e635]/20 text-[#65a30d]",
+  pending:      "bg-amber-100 text-amber-600",
+  failed:       "bg-red-100 text-red-600",
+  matched:      "bg-[#a3e635]/20 text-[#65a30d]",
+  categorized:  "bg-[#a3e635]/20 text-[#65a30d]",
+  raw:          "bg-zinc-100 text-zinc-500",
+  manual:       "bg-blue-50 text-blue-500",
 };
 
 export default function TransactionItem({ tx, idx, formatCurrency, formatDate, getInitials, onMatch }) {
@@ -50,19 +53,36 @@ export default function TransactionItem({ tx, idx, formatCurrency, formatDate, g
           </div>
 
           {/* Enhanced Match Context */}
-          {(tx.matched_payer || tx.matched_obligation) && (
+          {(tx.matched_payer || tx.matched_obligation || tx.collection_point) && (
             <div className="mt-2 sm:mt-3 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-zinc-50 border border-zinc-100 flex flex-col gap-1.5">
+              {/* Collection Point */}
+              {tx.collection_point && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black text-zinc-300 uppercase tracking-tighter w-12 sm:w-14">Via</span>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-violet-600 truncate">{tx.collection_point.name}</span>
+                  {tx.collection_point.account_no && (
+                    <span className="text-[9px] text-zinc-400 font-medium ml-auto shrink-0 tabular-nums">{tx.collection_point.account_no}</span>
+                  )}
+                </div>
+              )}
+              {/* Divider if we have both CP and match data */}
+              {tx.collection_point && (tx.matched_payer || tx.matched_obligation) && (
+                <div className="border-t border-zinc-200/60" />
+              )}
               {tx.matched_payer && (
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-black text-zinc-300 uppercase tracking-tighter w-12 sm:w-14">Payer</span>
                   <span className="text-[10px] sm:text-[11px] font-bold text-indigo-600 truncate">{tx.matched_payer.payer_name}</span>
+                  {tx.matched_payer.account_no && (
+                    <span className="text-[9px] text-zinc-400 font-medium ml-auto shrink-0 tabular-nums">{tx.matched_payer.account_no}</span>
+                  )}
                 </div>
               )}
               {tx.matched_obligation && (
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-black text-zinc-300 uppercase tracking-tighter w-12 sm:w-14">Target</span>
                   <span className="text-[10px] sm:text-[11px] font-bold text-zinc-700 leading-tight truncate">{tx.matched_obligation.description}</span>
-                  <span className="text-[9px] sm:text-[10px] text-[#65a30d] font-bold bg-[#a3e635]/10 px-1.5 py-0.5 rounded ml-auto">
+                  <span className="text-[9px] sm:text-[10px] text-[#65a30d] font-bold bg-[#a3e635]/10 px-1.5 py-0.5 rounded ml-auto shrink-0">
                     {formatCurrency(tx.matched_obligation.balance)}
                   </span>
                 </div>
@@ -81,7 +101,7 @@ export default function TransactionItem({ tx, idx, formatCurrency, formatDate, g
         
         <div className="flex flex-col items-end gap-1.5 sm:gap-2 shrink-0">
           <span className={`inline-flex px-2 sm:px-3 py-0.5 sm:py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm border border-black/5 ${badgeColors[tx.status?.toLowerCase()] || badgeColors.pending}`}>
-            {tx.status || "Pending"}
+            {tx.status?.toLowerCase() === "categorized" ? "Matched" : (tx.status || "Pending")}
           </span>
           <button 
             onClick={() => onMatch(tx)}

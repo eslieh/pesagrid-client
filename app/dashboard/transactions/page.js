@@ -34,6 +34,8 @@ function TransactionsRegistryContent() {
   const [search, setSearch] = useState(searchParams.get("search") || searchParams.get("account_no") || "");
   const [accountNo, setAccountNo] = useState("");
   const [collectionPointId, setCollectionPointId] = useState(searchParams.get("cp_id") || "");
+  const [txnStatus, setTxnStatus] = useState(searchParams.get("status") || "");
+  const [unmatchedOnly, setUnmatchedOnly] = useState(searchParams.get("unmatched_only") === "true");
   const [datePreset, setDatePreset] = useState("month");
   const [dateRange, setDateRange] = useState({ 
     start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
@@ -101,6 +103,8 @@ function TransactionsRegistryContent() {
         search,
         account_no: accountNo || undefined,
         collection_point_id: collectionPointId || undefined,
+        status: txnStatus || undefined,
+        unmatched_only: unmatchedOnly || undefined,
         start_date: search ? undefined : `${dateRange.start}T00:00:00`,
         end_date: search ? undefined : `${dateRange.end}T23:59:59`,
         amount_min: amountMin || undefined,
@@ -172,6 +176,7 @@ function TransactionsRegistryContent() {
         selectedPspId={selectedPspId} setSelectedPspId={setSelectedPspId}
         pspConfigs={pspConfigs}
         collectionPoints={collectionPoints}
+        unmatchedOnly={unmatchedOnly} setUnmatchedOnly={setUnmatchedOnly}
         onSearch={() => fetchData(false)}
         loading={loading}
       />

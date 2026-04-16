@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, StatWidget, ProgressBar } from "../pesagrid/components/dashboard/UI";
 import { 
@@ -9,6 +9,7 @@ import {
   getPeakTimes, 
   getRecentPayments
 } from "../../lib/Dashboard";
+import { getTransactions } from "../../lib/Transaction";
 import Link from "next/link";
 import { 
   getNotificationSettings,
@@ -65,6 +66,42 @@ export default function DashboardPage() {
   const [trendsLoading, setTrendsLoading] = useState(false);
   const [notifUpdating, setNotifUpdating] = useState(false);
 
+  // Unmatched transactions feed state
+  const UNMATCHED_PAGE_SIZE = 5;
+  const [unmatchedTxns, setUnmatchedTxns] = useState([]);
+  const [unmatchedTotal, setUnmatchedTotal] = useState(0);
+  const [unmatchedSkip, setUnmatchedSkip] = useState(0);
+  const [unmatchedLoading, setUnmatchedLoading] = useState(false);
+  const [unmatchedLoadingMore, setUnmatchedLoadingMore] = useState(false);
+
+  const fetchUnmatched = useCallback(async (isLoadMore = false) => {
+    try {
+      if (isLoadMore) setUnmatchedLoadingMore(true);
+      else setUnmatchedLoading(true);
+      const currentSkip = isLoadMore ? unmatchedSkip + UNMATCHED_PAGE_SIZE : 0;
+      const res = await getTransactions({
+        unmatched_only: true,
+        sort: "date_desc",
+        skip: currentSkip,
+        limit: UNMATCHED_PAGE_SIZE,
+      });
+      if (isLoadMore) {
+        setUnmatchedTxns(prev => [...prev, ...(res.items || [])]);
+        setUnmatchedSkip(currentSkip);
+      } else {
+        setUnmatchedTxns(res.items || []);
+        setUnmatchedSkip(0);
+      }
+      setUnmatchedTotal(res.total || 0);
+    } catch (err) {
+      console.error("Failed to fetch unmatched transactions:", err);
+    } finally {
+      setUnmatchedLoading(false);
+      setUnmatchedLoadingMore(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unmatchedSkip]);
+
   // Initial load — fetch everything
   useEffect(() => {
     async function fetchData() {
@@ -93,6 +130,7 @@ export default function DashboardPage() {
       }
     }
     fetchData();
+    fetchUnmatched(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -283,6 +321,50 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Unmatched Transactions Action Banner ─────────────────────────────── */}
+      <AnimatePresence>
+        {!loading && metrics.total_unmatched > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            className="mx-6 mt-2 mb-0"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200/80 shadow-sm">
+              <div className="flex items-center gap-3">
+                {/* Pulsing warning dot */}
+                <div className="relative flex-shrink-0">
+                  <div className="h-8 w-8 rounded-xl bg-amber-100 flex items-center justify-center">
+                    <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-400 border-2 border-amber-50 animate-pulse" />
+                </div>
+                <div>
+                  <p className="text-[12px] font-bold text-amber-900 leading-tight">
+                    {metrics.total_unmatched} unmatched {metrics.total_unmatched === 1 ? "transaction requires" : "transactions require"} your attention
+                  </p>
+                  <p className="text-[10px] text-amber-600/80 mt-0.5">
+                    Payments received but not linked to any payer or obligation — review and match them to keep your books clean.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/dashboard/transactions?status=raw"
+                className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
+              >
+                Review Now
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-12 gap-5 p-6 pt-2">
         {/* ── Column 1: Left ─────────────────────────── */}
@@ -609,27 +691,90 @@ export default function DashboardPage() {
           </p>
         </Card>
 
-        {/* Quick actions or info */}
+        {/* ── Unmatched Transactions Feed ─────────── */}
         <Card className="py-5 px-5">
-          <h4 className="text-[13px] font-semibold text-zinc-900 mb-4">Reports & Export</h4>
-          <div className="grid grid-cols-2 gap-3">
-            <button className="flex flex-col items-center gap-2 p-3 rounded-xl bg-zinc-50 border border-zinc-100 hover:bg-white hover:shadow-sm transition-all">
-              <div className="h-8 w-8 rounded-lg bg-[#a3e635]/10 flex items-center justify-center">
-                <svg className="h-4 w-4 text-[#6bb800]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <p className="text-[10px] font-semibold text-zinc-900">PDF Report</p>
-            </button>
-            <button className="flex flex-col items-center gap-2 p-3 rounded-xl bg-zinc-50 border border-zinc-100 hover:bg-white hover:shadow-sm transition-all">
-              <div className="h-8 w-8 rounded-lg bg-[#fdc649]/10 flex items-center justify-center">
-                <svg className="h-4 w-4 text-[#f59e0b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <p className="text-[10px] font-semibold text-zinc-900">Excel Export</p>
-            </button>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="text-[13px] font-semibold text-zinc-900 flex items-center gap-2">
+                Needs Action
+                {unmatchedTotal > 0 && (
+                  <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-amber-400 text-white text-[8px] font-black">
+                    {unmatchedTotal}
+                  </span>
+                )}
+              </h4>
+              <p className="text-[10px] text-zinc-400 mt-0.5">Unmatched payments pending review</p>
+            </div>
+            <Link
+              href="/dashboard/transactions?unmatched_only=true"
+              className="flex items-center gap-1 rounded-lg border border-zinc-100 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700 transition-all"
+            >
+              All
+              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
           </div>
+
+          {/* Feed */}
+          {unmatchedLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-12 rounded-xl bg-zinc-100/60 animate-pulse" />
+              ))}
+            </div>
+          ) : unmatchedTxns.length === 0 ? (
+            <div className="py-8 text-center flex flex-col items-center gap-2">
+              <div className="h-10 w-10 rounded-full bg-[#a3e635]/10 flex items-center justify-center text-xl">✅</div>
+              <p className="text-[11px] text-zinc-400">All caught up — no pending matches</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {unmatchedTxns.map((tx, i) => (
+                <Link
+                  key={tx.id || i}
+                  href={`/dashboard/transactions`}
+                  className="flex items-center gap-3 p-2.5 rounded-xl border border-amber-100 bg-amber-50/50 hover:bg-amber-50 hover:border-amber-200 transition-all group"
+                >
+                  {/* Avatar */}
+                  <div className="h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-black text-amber-600 bg-amber-100 border border-amber-200">
+                    {(tx.payer_name || tx.psp_type || "?").charAt(0).toUpperCase()}
+                  </div>
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-zinc-900 truncate">
+                      {tx.payer_name || tx.psp_ref || "Unknown"}
+                    </p>
+                    <p className="text-[9px] text-zinc-400 font-medium truncate">
+                      {tx.psp_type?.replace("_", " ")} · {tx.psp_ref || tx.account_no || "—"}
+                    </p>
+                  </div>
+                  {/* Amount */}
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[12px] font-black text-zinc-900">+{formatCurrency(tx.amount)}</p>
+                    <p className="text-[8px] font-bold text-amber-500 uppercase tracking-tight">
+                      {new Date(tx.ingested_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                    </p>
+                  </div>
+                  {/* Arrow hint */}
+                  <svg className="h-3 w-3 text-zinc-300 group-hover:text-amber-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              ))}
+
+              {/* Load More */}
+              {unmatchedTxns.length < unmatchedTotal && (
+                <button
+                  onClick={() => fetchUnmatched(true)}
+                  disabled={unmatchedLoadingMore}
+                  className="w-full mt-1 py-2 rounded-xl border border-dashed border-amber-200 text-[10px] font-bold text-amber-600 hover:bg-amber-50 transition-all disabled:opacity-50"
+                >
+                  {unmatchedLoadingMore ? "Loading..." : `Load more (${unmatchedTotal - unmatchedTxns.length} remaining)`}
+                </button>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Transaction history */}
