@@ -127,7 +127,21 @@ export default function TransactionItem({
                   </span>
                 </div>
               )}
+              {tx.amount_credited > 0 && (
+                <div className="flex items-center gap-2 pt-1 border-t border-violet-100/50">
+                  <span className="text-[9px] font-black text-violet-300 uppercase tracking-tighter w-12 sm:w-14">
+                    Credit
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-violet-600 truncate">
+                    Surplus added to payer balance
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] text-violet-600 font-bold bg-violet-100/50 px-1.5 py-0.5 rounded ml-auto shrink-0">
+                    +{formatCurrency(tx.amount_credited)}
+                  </span>
+                </div>
+              )}
             </div>
+
           )}
         </div>
       </div>
