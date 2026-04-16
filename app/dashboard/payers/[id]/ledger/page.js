@@ -5,10 +5,13 @@ import { Card } from "../../../../pesagrid/components/dashboard/UI";
 import { 
   getObligations, 
   voidObligation,
-  getPayerGroups
+  getPayerGroups,
+  getPayer
 } from "../../../../../lib/Obligation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
+import InvoiceWizard from "../../../invoices/components/InvoiceWizard";
 
 export default function PayerLedgerPage({ params }) {
   const unwrappedParams = use(params);
@@ -22,17 +25,23 @@ export default function PayerLedgerPage({ params }) {
   const [openActionId, setOpenActionId] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [payerDetails, setPayerDetails] = useState(null);
 
   const fetchSpecificLedger = async () => {
     try {
       setLedgerLoading(true);
-      // getObligations by payer_id
       const res = await getObligations({ payer_id: payerId, limit: 100 });
       setLedgerData(res.items || []);
       
-      // Attempt to set payerName from first obligation
       if (res.items && res.items.length > 0 && res.items[0].payer) {
         setPayerName(res.items[0].payer.name || res.items[0].payer.phone || "Payer");
+        setPayerDetails(res.items[0].payer);
+      } else {
+        // Backup: Fetch payer details if ledger is empty
+        const p = await getPayer(payerId);
+        setPayerName(p.name || p.phone || "Payer");
+        setPayerDetails(p);
       }
     } catch (err) {
       console.error("Failed to load specific ledger", err);
@@ -102,7 +111,37 @@ export default function PayerLedgerPage({ params }) {
             View all obligations, invoices, and payment history for this payer.
           </p>
         </div>
+
+        <button
+          onClick={() => setIsFormOpen(true)}
+          className="flex items-center gap-2 rounded-xl bg-[#a3e635] px-5 py-2.5 text-[12px] font-bold text-zinc-900 shadow-sm shadow-[#a3e635]/30 transition-all hover:bg-[#9de500] hover:shadow-md active:scale-95"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Create Invoice
+        </button>
       </div>
+
+      <AnimatePresence>
+        {isFormOpen && (
+          <InvoiceWizard
+            isOpen={isFormOpen}
+            onClose={() => setIsFormOpen(false)}
+            onSuccess={() => {
+              setMessage({ type: "success", text: "Invoice created successfully." });
+              fetchSpecificLedger();
+            }}
+            initialData={{
+              payer_id: payerId,
+              name: payerDetails?.name || "",
+              phone: payerDetails?.phone || "",
+              email: payerDetails?.email || "",
+              account_no: payerDetails?.account_no || ""
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {message.text && (
         <div 

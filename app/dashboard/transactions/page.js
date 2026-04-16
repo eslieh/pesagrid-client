@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import GlobalSearchHeader from "./components/GlobalSearchHeader";
 import TransactionItem from "./components/TransactionItem";
@@ -12,6 +12,8 @@ import { getPaymentChannels } from "../../../lib/PaymentChannel";
 import { Card } from "../../pesagrid/components/dashboard/UI";
 
 function TransactionsRegistryContent() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   
   // Basic states
@@ -41,10 +43,10 @@ function TransactionsRegistryContent() {
     start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   });
-  const [amountMin, setAmountMin] = useState("");
-  const [amountMax, setAmountMax] = useState("");
-  const [selectedPspId, setSelectedPspId] = useState("");
-  const [sort, setSort] = useState("date_desc");
+  const [amountMin, setAmountMin] = useState(searchParams.get("amount_min") || "");
+  const [amountMax, setAmountMax] = useState(searchParams.get("amount_max") || "");
+  const [selectedPspId, setSelectedPspId] = useState(searchParams.get("psp_id") || "");
+  const [sort, setSort] = useState(searchParams.get("sort") || "date_desc");
 
   // Format Helper
   const formatCurrency = (val) => new Intl.NumberFormat("en-US", { style: "currency", currency: "KES" }).format(val);
@@ -113,6 +115,7 @@ function TransactionsRegistryContent() {
         end_date: search ? undefined : `${dateRange.end}T23:59:59`,
         amount_min: amountMin || undefined,
         amount_max: amountMax || undefined,
+        psp_config_id: selectedPspId || undefined,
         sort,
         skip: currentSkip,
         limit
@@ -135,6 +138,23 @@ function TransactionsRegistryContent() {
     } finally {
       setLoading(false);
       setLoadingMore(false);
+
+      // Sync state to URL params for deep linking
+      if (!isLoadMore) {
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        if (collectionPointId) params.set("cp_id", collectionPointId);
+        if (txnStatus) params.set("status", txnStatus);
+        if (unmatchedOnly) params.set("unmatched_only", "true");
+        if (selectedPspId) params.set("psp_id", selectedPspId);
+        if (amountMin) params.set("amount_min", amountMin);
+        if (amountMax) params.set("amount_max", amountMax);
+        if (datePreset !== "month") params.set("preset", datePreset);
+        if (sort !== "date_desc") params.set("sort", sort);
+        
+        const queryString = params.toString();
+        router.replace(`${pathname}${queryString ? `?${queryString}` : ""}`, { scroll: false });
+      }
     }
   }, [search, accountNo, collectionPointId, dateRange, amountMin, amountMax, selectedPspId, sort, skip, txnStatus, unmatchedOnly]);
   // Initial load
