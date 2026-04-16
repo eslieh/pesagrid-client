@@ -345,7 +345,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-[12px] font-bold text-amber-900 leading-tight">
-                    {metrics.total_unmatched} unmatched {metrics.total_unmatched === 1 ? "transaction requires" : "transactions require"} your attention
+                  KES {metrics.total_unmatched} in unmatched {metrics.total_unmatched === 1 ? "transaction requires" : "transactions require"} your attention
                   </p>
                   <p className="text-[10px] text-amber-600/80 mt-0.5">
                     Payments received but not linked to any payer or obligation — review and match them to keep your books clean.
@@ -353,7 +353,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <Link
-                href="/dashboard/transactions?status=raw"
+                href="/dashboard/transactions?unmatched_only=true"
                 className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
               >
                 Review Now
