@@ -235,7 +235,7 @@ export default function CollectionPointWizard({ isOpen, onClose, onSave, editing
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-10">
+        <div className="mt-10">
           
           {/* STEP 1: Type */}
           {step === 1 && (
@@ -279,7 +279,7 @@ export default function CollectionPointWizard({ isOpen, onClose, onSave, editing
                     required
                   />
                 </Field>
-                <Field label="Account / ref" required>
+                <Field label="Account / ref" hint="Leave blank to auto-generate a unique ID.">
                   <input
                     name="account_no"
                     type="text"
@@ -287,7 +287,6 @@ export default function CollectionPointWizard({ isOpen, onClose, onSave, editing
                     onChange={handleChange}
                     className={inputCls}
                     placeholder={placeholders.account}
-                    required
                   />
                 </Field>
                 <div className="col-span-1 md:col-span-2">
@@ -511,7 +510,8 @@ export default function CollectionPointWizard({ isOpen, onClose, onSave, editing
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
+                onClick={handleSubmit}
                 disabled={isSubmitting}
                 className="flex items-center gap-2 rounded-xl bg-[#a3e635] px-6 py-2.5 text-[12px] font-bold text-zinc-900 shadow-sm shadow-[#a3e635]/30 transition-all hover:bg-[#9de500] active:scale-95 disabled:opacity-50"
               >
@@ -520,7 +520,7 @@ export default function CollectionPointWizard({ isOpen, onClose, onSave, editing
             )}
           </div>
 
-        </form>
+        </div>
       </Card>
     </motion.div>
   );

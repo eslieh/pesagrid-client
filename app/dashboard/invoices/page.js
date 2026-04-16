@@ -414,7 +414,7 @@ export default function InvoicesPage() {
                       />
                     </Field>
 
-                    <Field label="Account/Reference No.">
+                    <Field label="Account/Reference No." hint="Leave blank to auto-generate a unique ID.">
                       <input
                         name="account_no"
                         type="text"
@@ -1057,17 +1057,30 @@ export default function InvoicesPage() {
                      <div className="absolute left-[15px] top-4 bottom-4 w-px bg-zinc-100 -z-10" />
                      {upcomingPayments.entries.map((entry, idx) => {
                        const d = new Date(entry.due_date);
-                       const dateLabel = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                       const todayStr = new Date().toISOString().split('T')[0];
+                       
+                       // Check if overdue based on date string comparison or actual obligation status
+                       const isOverdue = entry.due_date < todayStr || entry.obligations?.some(ob => ob.status === 'overdue');
+                       const isToday = entry.due_date === todayStr;
+                       
+                       const dateLabel = isToday ? "Today" : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                       
+                       // Indicators
+                       const dotColor = isOverdue ? "bg-red-500" : (isToday ? "bg-[#f59e0b]" : "bg-[#a3e635]");
                        
                        return (
                          <div key={idx} className="flex gap-4">
-                           <div className="w-8 h-8 rounded-full bg-white border-2 border-zinc-100 shadow-sm flex items-center justify-center shrink-0 mt-0.5">
-                             <div className="w-2.5 h-2.5 rounded-full bg-[#a3e635]" />
+                           <div className={`w-8 h-8 rounded-full bg-white border-2 border-zinc-100 shadow-sm flex items-center justify-center shrink-0 mt-0.5`}>
+                             <div className={`w-2.5 h-2.5 rounded-full ${dotColor} ${isToday ? 'animate-pulse' : ''}`} />
                            </div>
-                           <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3">
+                           <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 shadow-sm hover:shadow-md transition-all">
                              <div className={`flex items-center justify-between ${entry.obligations?.length > 0 ? "mb-2 pb-2 border-b border-zinc-200" : "mb-1.5"}`}>
-                               <p className="text-[12px] font-bold text-zinc-900">{dateLabel}</p>
-                               <p className="text-[12px] font-bold text-zinc-900">{formatCurrency(entry.total_due)}</p>
+                               <div className="flex items-center gap-2">
+                                 <p className={`text-[12px] font-bold ${isOverdue ? 'text-red-500' : 'text-zinc-900'}`}>{dateLabel}</p>
+                                 {isOverdue && <span className="text-[9px] font-black uppercase tracking-widest text-red-500 bg-red-100 px-1.5 py-0.5 rounded">Overdue</span>}
+                                 {isToday && <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">Due Today</span>}
+                               </div>
+                               <p className={`text-[12px] font-bold ${isOverdue ? 'text-red-500' : 'text-zinc-900'}`}>{formatCurrency(entry.total_due)}</p>
                              </div>
                              
                              {entry.obligations?.length > 0 ? (
@@ -1075,10 +1088,10 @@ export default function InvoicesPage() {
                                  {entry.obligations.slice(0, 3).map((ob, obIdx) => (
                                    <div key={obIdx} className="flex justify-between items-center text-[11px]">
                                      <div className="min-w-0 flex-1 truncate pr-2 flex items-baseline gap-1.5">
-                                       <span className="font-semibold text-zinc-800 truncate">{ob.payer?.name || "Unknown"}</span>
+                                       <span className={`font-semibold truncate ${ob.status === 'overdue' ? 'text-red-500' : 'text-zinc-800'}`}>{ob.payer?.name || "Unknown"}</span>
                                        <span className="text-zinc-400 truncate text-[10px]">- {ob.description}</span>
                                      </div>
-                                     <span className="font-bold text-zinc-700 tabular-nums shrink-0">
+                                     <span className={`font-bold tabular-nums shrink-0 ${ob.status === 'overdue' ? 'text-red-500' : 'text-zinc-700'}`}>
                                        {formatCurrency(ob.amount_due)}
                                      </span>
                                    </div>

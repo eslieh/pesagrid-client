@@ -12,6 +12,7 @@ export default function GlobalSearchHeader({
   selectedPspId, setSelectedPspId,
   pspConfigs,
   collectionPoints,
+  unmatchedOnly, setUnmatchedOnly,
   onSearch,
   loading
 }) {
@@ -149,13 +150,25 @@ export default function GlobalSearchHeader({
               </div>
             </div>
 
-            {/* Search Button */}
+            {/* Search Button + Unmatched Toggle */}
             <div className="flex items-center justify-between lg:justify-end gap-3 mt-2 lg:mt-0 p-2 lg:p-0">
                <button 
                   onClick={() => setIsExpanded(false)}
                   className="lg:hidden text-[11px] font-bold text-zinc-400 px-4 py-2"
                >
                   Collapse
+               </button>
+               {/* Unmatched Only pill */}
+               <button
+                 onClick={() => { setUnmatchedOnly(!unmatchedOnly); }}
+                 className={`hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[10px] font-bold transition-all ${
+                   unmatchedOnly
+                     ? "bg-amber-400 text-white shadow-sm"
+                     : "bg-zinc-100 text-zinc-400 hover:bg-amber-50 hover:text-amber-600"
+                 }`}
+               >
+                 <span className={`h-1.5 w-1.5 rounded-full ${unmatchedOnly ? "bg-white" : "bg-amber-400"}`} />
+                 Unmatched
                </button>
                <button 
                 onClick={() => { onSearch(); if (window.innerWidth < 1024) setIsExpanded(false); }}

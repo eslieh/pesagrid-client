@@ -279,7 +279,7 @@ export default function PayersPage() {
                         />
                       </Field>
 
-                      <Field label="Account/Reference No." required>
+                      <Field label="Account/Reference No." hint="Leave blank to auto-generate a unique ID.">
                         <input
                           name="account_no"
                           type="text"
@@ -287,7 +287,6 @@ export default function PayersPage() {
                           onChange={handlePayerChange}
                           className={inputCls}
                           placeholder="e.g. UNIT-3B, STU-5542"
-                          required
                         />
                       </Field>
 
